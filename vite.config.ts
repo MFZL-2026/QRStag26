@@ -5,6 +5,7 @@ import sourceIdentifierPlugin from 'vite-plugin-source-identifier'
 
 const isProd = process.env.BUILD_MODE === 'prod'
 export default defineConfig({
+  base: '/QRStag26/',
   plugins: [
     react(),
     sourceIdentifierPlugin({
