@@ -77,15 +77,15 @@ interface AppSettings {
   appLogo: string
 }
 
-// QR Templates
+// QR Templates - Matched with main app QR_TEMPLATES
 const qrTemplates = [
-  { id: 'default', name: 'Classic', fgColor: '#000000', bgColor: '#ffffff' },
-  { id: 'gradient-blue', name: 'Gradient Blue', gradient: ['#667eea', '#764ba2'] },
-  { id: 'gradient-green', name: 'Nature Green', gradient: ['#11998e', '#38ef7d'] },
-  { id: 'warm-orange', name: 'Warm Orange', gradient: ['#f12711', '#f5af19'] },
-  { id: 'elegant-dark', name: 'Elegant Dark', fgColor: '#ffffff', bgColor: '#1a1a2e' },
-  { id: 'sunset-pink', name: 'Sunset Pink', gradient: ['#ee0979', '#ff6a00'] },
-  { id: 'ocean-blue', name: 'Ocean Blue', gradient: ['#1e3c72', '#2a5298'] },
+  { id: 'standard', name: 'Standard', fgColor: '#000000', bgColor: '#ffffff' },
+  { id: 'luxury', name: 'Luxury', fgColor: '#d4af37', bgColor: '#1a1a2e' },
+  { id: 'classic', name: 'Classic', fgColor: '#1a1a1a', bgColor: '#f5f5dc' },
+  { id: 'bold', name: 'Bold', fgColor: '#ffffff', bgColor: '#dc2626' },
+  { id: 'minimalist', name: 'Minimalist', fgColor: '#000000', bgColor: '#ffffff' },
+  { id: 'sports', name: 'Sports', fgColor: '#ffffff', bgColor: '#0f172a' },
+  { id: 'eco', name: 'Eco', fgColor: '#ffffff', bgColor: '#16a34a' },
 ]
 
 // QR Frames - decorative frame styles
@@ -275,7 +275,7 @@ export default function CustomerApp() {
         // Fetch company data
         if (carData.company_id) {
           const { data: companyData } = await supabase
-            .from('company')
+            .from('companies')
             .select('*')
             .eq('id', carData.company_id)
             .single()
@@ -377,17 +377,19 @@ export default function CustomerApp() {
 
   // Get current template
   const getCurrentTemplate = () => {
-    const templateId = car?.qr_template || 'default'
+    const templateId = car?.qr_template || 'standard'
     return qrTemplates.find(t => t.id === templateId) || qrTemplates[0]
   }
 
-  // Get template colors for QR code
+  // Get template colors for branding
   const getTemplateColors = () => {
     const template = qrTemplates.find(t => t.id === car?.qr_template) || qrTemplates[0]
-    if (template.gradient) {
-      return { fg: template.gradient[0], bg: '#ffffff' }
+    const templateAny = template as { fgColor?: string; bgColor?: string; borderColor?: string }
+    return {
+      fg: templateAny.fgColor || '#000000',
+      bg: templateAny.bgColor || '#ffffff',
+      border: templateAny.borderColor || templateAny.fgColor || '#000000'
     }
-    return { fg: template.fgColor || '#000000', bg: template.bgColor || '#ffffff' }
   }
 
   // Use html2canvas to capture the actual DOM element with all CSS effects
@@ -569,16 +571,16 @@ export default function CustomerApp() {
   const isActive = isQRActive()
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header - Always show company info */}
+    <div className="min-h-screen" style={{ background: templateColors.bg }}>
+      {/* Header - Company Branding with Template Colors */}
       {company && (
-        <div className="bg-white shadow-sm">
+        <div className="shadow-sm" style={{ background: templateColors.bg }}>
           <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-center gap-3">
             {/* Always show logo if available */}
             {company.branding_logo && (
               <img src={company.branding_logo} alt="Logo" className="w-10 h-10 object-contain" />
             )}
-            <h1 className="text-lg font-semibold text-gray-800">{company.name}</h1>
+            <h1 className="text-lg font-semibold" style={{ color: templateColors.fg }}>{company.name}</h1>
           </div>
         </div>
       )}
@@ -764,67 +766,29 @@ export default function CustomerApp() {
           </button>
         </div>
 
-        {/* QR Code Card (for printing/saving) */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6" style={{ background: templateColors.bg }}>
+        {/* Branding Card - With Template Colors (No QR Code, No Save/Print) */}
+        <div className="rounded-2xl shadow-lg p-6 mb-6" style={{ background: templateColors.bg, border: `4px solid ${templateColors.fg}` }}>
           <div className="text-center">
-            {/* Logo at center */}
-            {car.logo_position === 'center' && company?.branding_logo && (
+            {/* Company Logo */}
+            {company?.branding_logo && (
               <div className="mb-4">
-                <img src={company.branding_logo} alt="Logo" className="w-20 h-20 object-contain mx-auto" />
+                <img src={company.branding_logo} alt="Company Logo" className="w-32 h-32 object-contain mx-auto" />
               </div>
             )}
-
-            {/* QR Code - with Frame and Shape */}
-            <div
-              ref={qrRef}
-              className="inline-block shadow-lg"
-              style={{
-                ...(car.qr_frame ? QR_FRAMES.find(f => f.id === car.qr_frame)?.style : { background: '#ffffff', padding: '12px' }),
-                borderRadius: QR_SHAPES.find(s => s.id === car.qr_shape)?.borderRadius || '8px',
-              }}
-            >
-              <div style={{
-                background: '#ffffff',
-                padding: '12px',
-                borderRadius: QR_SHAPES.find(s => s.id === car.qr_shape)?.borderRadius || '8px',
-                overflow: 'hidden'
-              }}>
-                <QRCodeSVG
-                  value={qrUrl}
-                  size={200}
-                  level="H"
-                  fgColor={templateColors.fg}
-                  bgColor="#ffffff"
-                />
-              </div>
-            </div>
-
-            {/* Save QR button */}
-            <div className="flex justify-center mt-4">
-              <button onClick={downloadQR} className="flex items-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition">
-                <Download className="w-4 h-4" /> Save QR Code
-              </button>
-            </div>
-
-            {/* Car title under QR */}
-            <h2 className="text-xl font-bold mt-4" style={{ color: templateColors.fg }}>
-              {car.year} {car.make} {car.model}
+            {/* Company Name with Template Color */}
+            <h2 className="text-2xl font-bold" style={{ color: templateColors.fg }}>
+              {company?.name || 'Dealership'}
             </h2>
-            {car.price && (
-              <p className="text-2xl font-bold mt-2" style={{ color: templateColors.fg === '#ffffff' ? '#ffd700' : '#2563eb' }}>
-                {car.price}
-              </p>
-            )}
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer - Company Branding with Template Colors */}
         {car.company_name_position === 'bottom' && company && (
-          <div className="flex items-center justify-center gap-3 bg-white rounded-2xl shadow-lg p-6 mb-6">
+          <div className="flex items-center justify-center gap-3 rounded-2xl shadow-lg p-6 mb-6" style={{ background: templateColors.bg }}>
             {company.branding_logo && car.logo_position === 'bottom' && (
               <img src={company.branding_logo} alt="Logo" className="w-12 h-12 object-contain" />
             )}
-            <p className="text-lg font-semibold text-gray-700">{company.name}</p>
+            <p className="text-lg font-semibold" style={{ color: templateColors.fg }}>{company.name}</p>
           </div>
         )}
 

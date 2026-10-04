@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import { toCanvas } from 'qrcode'
 import html2canvas from 'html2canvas'
 import { Car, Phone, Mail, Plus, Trash2, Edit3, LogOut, Eye, X, Save, Loader2, Building2, ChevronDown, ChevronUp, Image, FileText, ArrowLeft, Printer, Hexagon, Sparkles, Users, TrendingUp, Download, Upload, Search, Bell, Globe, Zap, Star, Crown, Database, Settings, Link2, ChevronRight, Filter, Calendar, DollarSign, PieChart as LucidePieChart, Activity, ArrowUpRight, ArrowDownRight, MessageCircle, UserPlus, Shield, Key, Smartphone, Maximize2 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import * as Recharts from 'recharts'
 
-// Print size options
+// Print size options - A4 optimized (210mm x 297mm)
 const PRINT_SIZES = [
-  { id: 'standard', name: 'Standard', width: 200, height: 200, desc: 'Small label/sticker' },
-  { id: 'a5', name: 'Full A5', width: 350, height: 350, desc: '148×210mm' },
-  { id: 'a4', name: 'Full A4', width: 500, height: 500, desc: '210×297mm' },
+  { id: 'small', name: 'Minimum', width: 80, height: 80, desc: '3.1×3.1 inches (8×8cm)', displaySize: '4"' },
+  { id: 'medium', name: 'Optimal', width: 120, height: 120, desc: '4.7×4.7 inches (12×12cm)', displaySize: '6"' },
+  { id: 'large', name: 'Large', width: 160, height: 160, desc: '6.3×6.3 inches (16×16cm)', displaySize: '8"' },
 ]
 
 // User Role Types
@@ -393,7 +394,7 @@ export default function App() {
     app_description: 'QR Code Management for Car Dealerships',
     primary_color: '#3b82f6',
     secondary_color: '#1e40af',
-    custom_qr_url: 'https://q2r3zr4j13l8.space.mcode.io', // Default to current deployment
+    custom_qr_url: window.location.origin || 'https://iwnhir1vn5i8.space.mcode.io', // Will auto-detect current domain
     updated_at: new Date().toISOString()
   })
 
@@ -410,8 +411,9 @@ export default function App() {
   const [selectedShape, setSelectedShape] = useState<string>('square')
   const [showFrameSelector, setShowFrameSelector] = useState(false)
   const [showShapeSelector, setShowShapeSelector] = useState(false)
-  const [printSize, setPrintSize] = useState('standard')
+  const [printSize, setPrintSize] = useState('medium')
   const qrPreviewRef = useRef<HTMLDivElement>(null)
+  const [qrImageDataUrl, setQrImageDataUrl] = useState<string>('')
 
   // Bulk Import States
   const [bulkImportData, setBulkImportData] = useState<Partial<CarData>[]>([])
@@ -430,7 +432,11 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0)
 
   // App Branding Settings (using Supabase - see appSettings state)
-  const [customQrUrl, setCustomQrUrl] = useState(() => localStorage.getItem(STORAGE_KEYS.CUSTOM_QR_URL) || '')
+  // Use current origin by default - QR codes will work on any domain
+  const [customQrUrl, setCustomQrUrl] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOM_QR_URL)
+    return saved || window.location.origin
+  })
 
   // Company-level tabs
   const [companyActiveTab, setCompanyActiveTab] = useState<{ [companyId: string]: 'cars' | 'analytics' | 'leads' }>({})
@@ -718,6 +724,42 @@ export default function App() {
     }, 15000) // Refresh every 15 seconds
     return () => clearInterval(interval)
   }, [isLoggedIn, viewingCarId, fetchData])
+
+  // Generate QR code image when editingCar changes
+  useEffect(() => {
+    if (!editingCar) {
+      setQrImageDataUrl('')
+      return
+    }
+
+    const generateQR = async () => {
+      try {
+        const qrValue = `${appSettings.custom_qr_url || window.location.origin}/index-customer.html?car=${editingCar.id}`
+        const template = QR_TEMPLATES[editingCar.qr_template] || QR_TEMPLATES.standard
+
+        // Create a canvas and use qrcode library to generate QR
+        // Use template colors with high error correction for center logo support
+        const canvas = document.createElement('canvas')
+        await toCanvas(canvas, qrValue, {
+          width: 200,
+          margin: 1,
+          errorCorrectionLevel: 'H', // High error correction for center logo support
+          color: {
+            dark: template.qrColor || '#000000', // Use template color
+            light: template.qrBg || '#ffffff'   // Use template background
+          }
+        })
+
+        // Small delay to ensure canvas is ready
+        await new Promise(resolve => setTimeout(resolve, 100))
+        setQrImageDataUrl(canvas.toDataURL('image/png'))
+      } catch (err) {
+        console.error('QR generation error:', err)
+      }
+    }
+
+    generateQR()
+  }, [editingCar, appSettings.custom_qr_url])
 
   async function fetchCarById(carId: string) {
     const [carRes, companiesRes] = await Promise.all([
@@ -1627,7 +1669,7 @@ export default function App() {
     if (!printWindow) return
     let html = `<!DOCTYPE html><html><head><title>Print Barcodes - ${company.name}</title><style>body{font-family:Arial;padding:10px;margin:0}.barcodes{display:flex;flex-wrap:wrap;gap:15px;justify-content:center}.card{background:white;padding:8px;text-align:center;page-break-inside:avoid;display:inline-block}.card .qr-wrapper{display:inline-block;padding:6px;position:relative}.card .qr-wrapper img.logo-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;object-fit:contain;background:white;border-radius:2px;padding:2px}.card .car-name{font-size:10px;font-weight:600;margin-top:4px}.card .logo-img{max-width:50px;max-height:25px;object-fit:contain;margin:0 auto;display:block}.card .company-name{font-size:9px;color:#333;font-weight:bold;text-align:center;margin-bottom:4px}@media print{body{padding:0}.card{margin:2px;page-break-inside:avoid}}</style></head><body><div class="barcodes">`
     companyCars.forEach(car => {
-      const url = getCarUrl(car.id)
+      const url = `${appSettings.custom_qr_url || window.location.origin}/index-customer.html?car=${car.id}`
       const styleParams = getQrStyleParams(car.qr_template, car.qr_frame, car.qr_shape)
 
       // QR with center logo only
@@ -1687,7 +1729,7 @@ export default function App() {
     const qrColor = template.qrColor.replace('#', '')
     const qrBg = template.qrBg.replace('#', '')
 
-    const url = getCarUrl(car.id)
+    const url = `${appSettings.custom_qr_url || window.location.origin}/index-customer.html?car=${car.id}`
 
     // QR size
     const qrSize = 200
@@ -4428,30 +4470,64 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* QR Preview */}
+                    {/* QR Preview - Shows ALL settings combined */}
                     <div className="flex flex-col items-center">
                       <div
                         ref={qrPreviewRef}
-                        className="inline-block shadow-lg bg-white p-4"
+                        className="qr-preview-container"
                         style={{
-                          ...(editingCar.qr_frame ? QR_FRAMES.find(f => f.id === editingCar.qr_frame)?.style : { background: '#ffffff', padding: '8px' }),
+                          background: QR_TEMPLATES[editingCar.qr_template]?.qrBg || '#ffffff',
+                          padding: '16px',
+                          border: `3px solid ${QR_TEMPLATES[editingCar.qr_template]?.borderColor || '#333'}`,
                           borderRadius: QR_SHAPES.find(s => s.id === editingCar.qr_shape)?.borderRadius || '8px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          display: 'inline-block',
+                          textAlign: 'center',
+                          position: 'relative'
                         }}
                       >
-                        <div style={{
-                          background: '#ffffff',
-                          padding: '8px',
-                          borderRadius: QR_SHAPES.find(s => s.id === editingCar.qr_shape)?.borderRadius || '8px',
-                          overflow: 'hidden'
-                        }}>
-                          <QRCodeSVG
-                            value={`${customQrUrl || window.location.origin}/index-customer.html?car=${editingCar.id}`}
-                            size={PRINT_SIZES.find(s => s.id === printSize)?.width || 200}
-                            level="H"
-                            fgColor={QR_TEMPLATES[editingCar.qr_template]?.qrColor || '#000000'}
-                            bgColor={QR_TEMPLATES[editingCar.qr_template]?.qrBg || '#ffffff'}
-                          />
+                        {/* TOP SECTION - Company Name */}
+                        {editingCar.company_name_position === 'top' && companies.find(c => c.id === editingCar.company_id)?.name && (
+                          <div style={{ fontSize: '14px', fontWeight: 'bold', color: QR_TEMPLATES[editingCar.qr_template]?.qrColor || '#333', marginBottom: '8px' }}>
+                            {companies.find(c => c.id === editingCar.company_id)?.name}
+                          </div>
+                        )}
+
+                        {/* TOP SECTION - Logo */}
+                        {editingCar.logo_position === 'top' && companies.find(c => c.id === editingCar.company_id)?.branding_logo && (
+                          <img src={companies.find(c => c.id === editingCar.company_id)?.branding_logo || ''} alt="Logo" style={{ maxWidth: '80px', maxHeight: '40px', objectFit: 'contain', margin: '0 auto 8px', display: 'block' }} />
+                        )}
+
+                        {/* QR CODE */}
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <div style={{ background: '#ffffff', padding: '8px', borderRadius: QR_SHAPES.find(s => s.id === editingCar.qr_shape)?.borderRadius || '8px', overflow: 'hidden', display: 'inline-block' }}>
+                            {qrImageDataUrl ? (
+                              <img src={qrImageDataUrl} alt="QR Code" style={{ width: '180px', height: '180px', display: 'block' }} />
+                            ) : (
+                              <div style={{ width: '180px', height: '180px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
+                                Loading...
+                              </div>
+                            )}
+                          </div>
+                          {/* CENTER LOGO OVERLAY */}
+                          {editingCar.logo_position === 'center' && companies.find(c => c.id === editingCar.company_id)?.branding_logo && (
+                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
+                              <img src={companies.find(c => c.id === editingCar.company_id)?.branding_logo || ''} alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain', background: QR_TEMPLATES[editingCar.qr_template]?.qrBg || '#ffffff', borderRadius: '4px', padding: '2px' }} />
+                            </div>
+                          )}
                         </div>
+
+                        {/* BOTTOM SECTION - Logo */}
+                        {editingCar.logo_position === 'bottom' && companies.find(c => c.id === editingCar.company_id)?.branding_logo && (
+                          <img src={companies.find(c => c.id === editingCar.company_id)?.branding_logo || ''} alt="Logo" style={{ maxWidth: '80px', maxHeight: '40px', objectFit: 'contain', margin: '8px auto 0', display: 'block' }} />
+                        )}
+
+                        {/* BOTTOM SECTION - Company Name */}
+                        {editingCar.company_name_position === 'bottom' && companies.find(c => c.id === editingCar.company_id)?.name && (
+                          <div style={{ fontSize: '14px', fontWeight: 'bold', color: QR_TEMPLATES[editingCar.qr_template]?.qrColor || '#333', marginTop: '8px' }}>
+                            {companies.find(c => c.id === editingCar.company_id)?.name}
+                          </div>
+                        )}
                       </div>
                       <p className="text-xs text-gray-500 mt-2">{editingCar.year} {editingCar.make} {editingCar.model}</p>
 
@@ -4462,7 +4538,27 @@ export default function App() {
                           onClick={async () => {
                             if (!qrPreviewRef.current) return
                             try {
-                              const canvas = await html2canvas(qrPreviewRef.current, { scale: 2, useCORS: true, backgroundColor: null })
+                              // Wait for all images to load
+                              const images = qrPreviewRef.current.querySelectorAll('img')
+                              await Promise.all(Array.from(images).map(img => {
+                                if (img.complete) return Promise.resolve()
+                                return new Promise((resolve, reject) => {
+                                  img.onload = resolve
+                                  img.onerror = resolve // Don't fail on error
+                                  setTimeout(resolve, 2000) // Timeout fallback
+                                })
+                              }))
+
+                              // Small delay for render
+                              await new Promise(r => setTimeout(r, 200))
+
+                              const canvas = await html2canvas(qrPreviewRef.current, {
+                                scale: 2,
+                                useCORS: true,
+                                allowTaint: true,
+                                backgroundColor: null,
+                                imageTimeout: 0
+                              })
                               const link = document.createElement('a')
                               link.download = `qr-${editingCar.make}-${editingCar.model}-${printSize}.png`
                               link.href = canvas.toDataURL('image/png')
@@ -4479,77 +4575,132 @@ export default function App() {
                         <button
                           type="button"
                           onClick={async () => {
-                            if (!qrPreviewRef.current) return
+                            if (!qrImageDataUrl) {
+                              alert('QR code is still loading. Please wait and try again.')
+                              return
+                            }
                             try {
-                              const canvas = await html2canvas(qrPreviewRef.current, { scale: 2, useCORS: true, backgroundColor: null })
                               const sizeConfig = PRINT_SIZES.find(s => s.id === printSize) || PRINT_SIZES[0]
                               const printWindow = window.open('', '_blank')
                               if (!printWindow) {
                                 alert('Please allow popups to print')
                                 return
                               }
-                              const imgDataUrl = canvas.toDataURL('image/png')
 
-                              // Calculate dimensions based on print size
-                              const isA4 = printSize === 'a4'
-                              const isA5 = printSize === 'a5'
-                              const qrWidth = isA4 ? 180 : isA5 ? 140 : sizeConfig.width
-                              const padding = isA4 ? 60 : isA5 ? 40 : 30
-                              const fontSize = isA4 ? 28 : isA5 ? 22 : 18
-                              const pageWidth = isA4 ? '210mm' : isA5 ? '148mm' : 'auto'
-                              const pageHeight = isA4 ? '297mm' : isA5 ? '210mm' : 'auto'
+                              // Get company and template info
+                              const company = companies.find(c => c.id === editingCar.company_id)
+                              const template = QR_TEMPLATES[editingCar.qr_template] || QR_TEMPLATES.standard
+
+                              // A4 optimized sizes (210mm x 297mm)
+                              const qrWidthMm = `${sizeConfig.width}mm`
+                              const qrHeightMm = `${sizeConfig.height}mm`
+                              const paddingMm = '20mm'
+                              const fontSize = `${Math.round(sizeConfig.width * 0.11)}pt`
+
+                              // Use logo URL (original or base64 converted)
+                              const logoUrl = company?.branding_logo || ''
+
+                              // Build logo HTML if present - use original URL directly for better compatibility
+                              let logoHtml = ''
+                              const logoSizePrint = Math.round(sizeConfig.width * 0.4)
+                              if (logoUrl && editingCar.logo_position === 'top') {
+                                logoHtml += `<img src="${logoUrl}" style="max-width: ${logoSizePrint}px; max-height: ${Math.round(logoSizePrint * 0.5)}px; object-fit: contain; margin: 0 auto 10px; display: block;" alt="Logo" crossorigin="anonymous" />`
+                              }
+
+                              // Build company name HTML if present
+                              let nameHtml = ''
+                              if (company?.name && editingCar.company_name_position === 'top') {
+                                nameHtml += `<div style="font-size: ${fontSize}; font-weight: bold; color: ${template.qrColor || '#333'}; margin-bottom: 10px;">${company.name}</div>`
+                              }
+
+                              let bottomLogoHtml = ''
+                              if (logoUrl && editingCar.logo_position === 'bottom') {
+                                bottomLogoHtml += `<img src="${logoUrl}" style="max-width: ${logoSizePrint}px; max-height: ${Math.round(logoSizePrint * 0.5)}px; object-fit: contain; margin: 10px auto 0; display: block;" alt="Logo" crossorigin="anonymous" />`
+                              }
+
+                              let bottomNameHtml = ''
+                              if (company?.name && editingCar.company_name_position === 'bottom') {
+                                bottomNameHtml += `<div style="font-size: ${fontSize}; font-weight: bold; color: ${template.qrColor || '#333'}; margin-top: 10px;">${company.name}</div>`
+                              }
+
+                              // Center logo positioned over QR - use mm for print
+                              let centerLogoHtml = ''
+                              const logoSizeMm = Math.round(sizeConfig.width * 0.2) // 20% of QR size
+                              if (logoUrl && editingCar.logo_position === 'center') {
+                                centerLogoHtml = `
+                                  <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10;">
+                                    <img src="${logoUrl}" style="width: ${logoSizeMm}mm; height: ${logoSizeMm}mm; object-fit: contain; background: ${template.qrBg || '#ffffff'}; border-radius: 2px; padding: 1px;" alt="Logo" crossorigin="anonymous" />
+                                  </div>
+                                `
+                              }
 
                               printWindow.document.write(`
                                 <!DOCTYPE html>
                                 <html>
                                 <head>
-                                  <title>Print QR Code - ${sizeConfig.name}</title>
+                                  <title>Print QR Code - ${sizeConfig.name} on A4</title>
                                   <style>
                                     * { margin: 0; padding: 0; box-sizing: border-box; }
-                                    @page { size: ${pageWidth} ${pageHeight}; margin: 0; }
+                                    @page { size: 210mm 297mm; margin: 0; }
                                     body {
+                                      width: 210mm;
+                                      min-height: 297mm;
+                                      font-family: Arial, sans-serif;
+                                      background: #fff;
                                       display: flex;
                                       justify-content: center;
-                                      align-items: center;
-                                      min-height: 100vh;
-                                      font-family: Arial, sans-serif;
+                                      padding: 20mm 0;
                                     }
                                     .qr-container {
                                       text-align: center;
-                                      padding: ${padding}px;
-                                      width: 100%;
-                                      height: 100%;
+                                      padding: 0 ${paddingMm};
                                       display: flex;
                                       flex-direction: column;
-                                      justify-content: center;
                                       align-items: center;
+                                      justify-content: center;
+                                      max-width: 210mm;
+                                      background: ${template.qrBg || '#ffffff'};
+                                      border: 3px solid ${template.borderColor || '#333'};
+                                      border-radius: 8px;
+                                      position: relative;
+                                    }
+                                    .qr-wrapper {
+                                      position: relative;
+                                      display: inline-block;
                                     }
                                     .qr-image {
-                                      width: ${qrWidth}mm;
-                                      height: auto;
+                                      width: ${qrWidthMm};
+                                      height: ${qrHeightMm};
+                                      object-fit: contain;
+                                      display: block;
                                     }
                                     .car-info {
-                                      margin-top: ${padding}px;
-                                      font-size: ${fontSize}px;
+                                      margin-top: 10mm;
+                                      font-size: ${fontSize};
                                       color: #333;
+                                      text-align: center;
                                     }
                                     .car-price {
-                                      font-size: ${fontSize + 8}px;
+                                      font-size: ${fontSize};
                                       color: #2563eb;
                                       font-weight: bold;
-                                      margin-top: 10px;
+                                      margin-top: 5px;
                                     }
                                     @media print {
                                       body { margin: 0; }
-                                      .qr-container {
-                                        padding: ${padding}mm;
-                                      }
                                     }
                                   </style>
                                 </head>
                                 <body>
                                   <div class="qr-container">
-                                    <img src="${imgDataUrl}" class="qr-image" alt="QR Code" />
+                                    ${nameHtml}
+                                    ${logoHtml}
+                                    <div class="qr-wrapper">
+                                      <img src="${qrImageDataUrl}" class="qr-image" alt="QR Code" />
+                                      ${centerLogoHtml}
+                                    </div>
+                                    ${bottomLogoHtml}
+                                    ${bottomNameHtml}
                                     <div class="car-info">
                                       <strong>${editingCar.year} ${editingCar.make} ${editingCar.model}</strong>
                                       ${editingCar.price ? `<div class="car-price">${editingCar.price}</div>` : ''}
@@ -4557,7 +4708,7 @@ export default function App() {
                                   </div>
                                   <script>
                                     window.onload = function() {
-                                      setTimeout(function() { window.print(); window.close(); }, 500);
+                                      setTimeout(function() { window.print(); }, 300);
                                     };
                                   </script>
                                 </body>
@@ -4571,7 +4722,7 @@ export default function App() {
                           }}
                           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
                         >
-                          <Printer className="w-4 h-4" /> Print ({PRINT_SIZES.find(s => s.id === printSize)?.name})
+                          <Printer className="w-4 h-4" /> Print {PRINT_SIZES.find(s => s.id === printSize)?.name} ({PRINT_SIZES.find(s => s.id === printSize)?.displaySize}) A4
                         </button>
                       </div>
                     </div>
