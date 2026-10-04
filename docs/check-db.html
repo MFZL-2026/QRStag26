@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+  <title>Database Check</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; }
+    .section { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; }
+    .error { color: red; }
+    .success { color: green; }
+    pre { background: #f0f0f0; padding: 10px; overflow-x: auto; max-height: 300px; }
+  </style>
+</head>
+<body>
+  <h1>Database Tables Check</h1>
+  <div id="result">Loading...</div>
+
+  <script>
+    const supabaseUrl = 'https://uifcfnkbccluhyryywxe.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU';
+
+    async function fetchTable(tableName) {
+      const response = await fetch(supabaseUrl + '/rest/v1/' + tableName + '?select=*', {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': 'Bearer ' + supabaseKey
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { table: tableName, error: error.message };
+      }
+
+      const data = await response.json();
+      return { table: tableName, data: data };
+    }
+
+    async function checkAll() {
+      const results = await Promise.all([
+        fetchTable('companies'),
+        fetchTable('cars'),
+        fetchTable('scan_records')
+      ]);
+
+      let html = '';
+      for (const r of results) {
+        html += `<div class="section">
+          <h2>${r.table.toUpperCase()}</h2>`;
+        if (r.error) {
+          html += `<p class="error">ERROR: ${r.error}</p>`;
+        } else {
+          html += `<p class="success">Count: ${r.data?.length || 0}</p>`;
+          html += `<pre>${JSON.stringify(r.data, null, 2)}</pre>`;
+        }
+        html += '</div>';
+      }
+
+      document.getElementById('result').innerHTML = html;
+    }
+
+    setTimeout(checkAll, 500);
+  </script>
+</body>
+</html>
