@@ -734,7 +734,9 @@ export default function App() {
 
     const generateQR = async () => {
       try {
-        const qrValue = `${appSettings.custom_qr_url || window.location.origin}/index-customer.html?car=${editingCar.id}`
+        // Use GitHub Pages URL as fallback to ensure QR codes always work correctly
+        const defaultQrUrl = 'https://mfzl-2026.github.io/QRStag26'
+        const qrValue = `${appSettings.custom_qr_url || defaultQrUrl}/index-customer.html?car=${editingCar.id}`
         const template = QR_TEMPLATES[editingCar.qr_template] || QR_TEMPLATES.standard
 
         // Create a canvas and use qrcode library to generate QR
@@ -800,6 +802,7 @@ export default function App() {
     setIsLoggedIn(true)
     setLoginPassword('')
     fetchData()
+    fetchAppSettings() // Ensure settings are loaded
   }
 
   function handleLogin() {
@@ -809,6 +812,7 @@ export default function App() {
       localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
       setLoginPassword('')
       fetchData()
+      fetchAppSettings() // Ensure settings are loaded
     } else {
       alert('Incorrect password')
     }
