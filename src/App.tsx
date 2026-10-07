@@ -394,7 +394,7 @@ export default function App() {
     app_description: 'QR Code Management for Car Dealerships',
     primary_color: '#3b82f6',
     secondary_color: '#1e40af',
-    custom_qr_url: window.location.origin || 'https://iwnhir1vn5i8.space.mcode.io', // Will auto-detect current domain
+    custom_qr_url: window.location.origin || 'https://mfzl-2026.github.io/QRStag26', // Will auto-detect current domain
     updated_at: new Date().toISOString()
   })
 
