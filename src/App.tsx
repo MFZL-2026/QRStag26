@@ -126,7 +126,7 @@ const Legend = Recharts.Legend as any
 
 // Subscription Plans
 type PlanType = 'free' | 'starter' | 'professional' | 'enterprise'
-type QRTemplate = 'standard' | 'luxury' | 'classic' | 'bold' | 'minimalist' | 'sports' | 'eco'
+type QRTemplate = 'standard' | 'luxury' | 'classic' | 'bold' | 'minimalist' | 'sports' | 'eco' | 'ev' | 'hybrid' | 'plugin_hybrid'
 type LeadInterest = 'urgent' | 'normal'
 type NotifType = 'scan' | 'lead' | 'expiry' | 'report'
 
@@ -186,6 +186,17 @@ interface CarData {
   logo_position: LogoPosition
   company_name_position: CompanyNamePosition
   created_at: string
+  // New regulatory fields
+  ccr_no: string
+  approved_on: string
+  produced_in_and_after: string
+  country_of_production: string
+  pollutant_limits: string
+  vin: string
+  label_no: string
+  manufacturer: string
+  motor_vehicle_class: string
+  fe_cafe_combined: string
 }
 
 interface ScanRecord {
@@ -248,7 +259,11 @@ const QR_TEMPLATES: Record<QRTemplate, { name: string; description: string; prev
   bold: { name: 'Bold', description: 'High impact red', preview: 'bg-gradient-to-br from-red-600 to-red-800', qrColor: '#ffffff', qrBg: '#dc2626', borderColor: '#991b1b', shape: 'circle' },
   minimalist: { name: 'Minimalist', description: 'Ultra clean white', preview: 'bg-white border-2 border-gray-200', qrColor: '#000000', qrBg: '#ffffff', borderColor: '#e5e7eb', shape: 'minimal' },
   sports: { name: 'Sports', description: 'Dynamic racing style', preview: 'bg-gradient-to-r from-blue-500 to-green-500', qrColor: '#ffffff', qrBg: '#0f172a', borderColor: '#22c55e', shape: 'hexagon' },
-  eco: { name: 'Eco', description: 'Natural green theme', preview: 'bg-gradient-to-br from-green-600 to-emerald-800', qrColor: '#ffffff', qrBg: '#16a34a', borderColor: '#15803d', shape: 'leaf' }
+  eco: { name: 'Eco', description: 'Natural green theme', preview: 'bg-gradient-to-br from-green-600 to-emerald-800', qrColor: '#ffffff', qrBg: '#16a34a', borderColor: '#15803d', shape: 'leaf' },
+  // Electric & Hybrid Templates
+  ev: { name: 'EV', description: 'Electric vehicle blue', preview: 'bg-gradient-to-br from-blue-500 to-blue-700', qrColor: '#ffffff', qrBg: '#2563eb', borderColor: '#1d4ed8', shape: 'square' },
+  hybrid: { name: 'Hybrid', description: 'Hybrid vehicle green', preview: 'bg-gradient-to-br from-green-500 to-green-700', qrColor: '#ffffff', qrBg: '#22c55e', borderColor: '#16a34a', shape: 'square' },
+  plugin_hybrid: { name: 'Plug-in Hybrid', description: 'Plug-in hybrid turquoise', preview: 'bg-gradient-to-br from-cyan-400 to-teal-600', qrColor: '#ffffff', qrBg: '#06b6d4', borderColor: '#0891b2', shape: 'square' }
 }
 
 // NEW: Enhanced QR Frame Templates (25+ decorative frames)
@@ -353,7 +368,18 @@ function emptyCar(companyId: string = ''): CarData {
     qr_shape: 'square',
     logo_position: 'none',
     company_name_position: 'top',
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    // New regulatory fields
+    ccr_no: '',
+    approved_on: '',
+    produced_in_and_after: '',
+    country_of_production: '',
+    pollutant_limits: '',
+    vin: '',
+    label_no: '',
+    manufacturer: '',
+    motor_vehicle_class: '',
+    fe_cafe_combined: ''
   }
 }
 
@@ -1537,12 +1563,14 @@ export default function App() {
   function getCompanyCars(companyId: string) {
     let companyCars = cars.filter(c => c.company_id === companyId)
     if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      companyCars = companyCars.filter(c =>
-        c.make.toLowerCase().includes(q) ||
-        c.model.toLowerCase().includes(q) ||
-        c.year.toString().includes(q)
-      )
+      const q = searchQuery.toLowerCase().trim()
+      if (q) {
+        companyCars = companyCars.filter(c =>
+          (c.make?.toLowerCase() || '').includes(q) ||
+          (c.model?.toLowerCase() || '').includes(q) ||
+          String(c.year || '').includes(q)
+        )
+      }
     }
     if (filterPrice !== 'all') {
       companyCars = companyCars.filter(c => {
@@ -1635,7 +1663,10 @@ export default function App() {
       bold: { color: 'ffffff', bgcolor: 'dc2626', style: 'border:4px solid #991b1b;border-radius:50%;padding:4px' },
       minimalist: { color: '000000', bgcolor: 'ffffff', style: 'border:1px solid #e5e7eb;padding:8px' },
       sports: { color: 'ffffff', bgcolor: '0f172a', style: 'border:3px solid #22c55e;border-radius:4px' },
-      eco: { color: 'ffffff', bgcolor: '16a34a', style: 'border:3px solid #15803d;border-radius:12px 0 12px 0' }
+      eco: { color: 'ffffff', bgcolor: '16a34a', style: 'border:3px solid #15803d;border-radius:12px 0 12px 0' },
+      ev: { color: 'ffffff', bgcolor: '2563eb', style: 'border:3px solid #1d4ed8;border-radius:8px' },
+      hybrid: { color: 'ffffff', bgcolor: '22c55e', style: 'border:3px solid #16a34a;border-radius:8px' },
+      plugin_hybrid: { color: 'ffffff', bgcolor: '06b6d4', style: 'border:3px solid #0891b2;border-radius:8px' }
     }
 
     let baseStyle = templates[template] || templates.standard
@@ -1885,8 +1916,12 @@ export default function App() {
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(now)
       date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
-      const count = scanRecords.filter(s => s.scanned_at.startsWith(dateStr)).length
+      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)
+      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
+      const count = scanRecords.filter(s => {
+        const scanDate = new Date(s.scanned_at)
+        return scanDate >= dayStart && scanDate <= dayEnd
+      }).length
       data.push({ date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), scans: count })
     }
     return data
@@ -3703,10 +3738,12 @@ export default function App() {
                                   for (let i = chartDays - 1; i >= 0; i--) {
                                     const date = new Date()
                                     date.setDate(date.getDate() - i)
-                                    const dateStr = date.toISOString().split('T')[0]
+                                    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)
+                                    const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
                                     const count = scanRecords.filter(s => {
                                       const car = cars.find(c => c.id === s.car_id)
-                                      return car?.company_id === company.id && s.scanned_at.startsWith(dateStr)
+                                      const scanDate = new Date(s.scanned_at)
+                                      return car?.company_id === company.id && scanDate >= dayStart && scanDate <= dayEnd
                                     }).length
                                     days.push({ date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), scans: count })
                                   }
@@ -3752,7 +3789,7 @@ export default function App() {
                           </div>
 
                           {/* Recent Scans */}
-                          <div className="bg-white p-4 rounded-xl border">
+                          <div className="bg-white p-4 rounded-xl border" key={`recent-scans-${recentScansRange}`}>
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="font-semibold">Recent Scans</h4>
                               <select
@@ -3767,36 +3804,44 @@ export default function App() {
                               </select>
                             </div>
                             {(() => {
+                              // Use consistent date parsing for all scans
                               const now = new Date()
-                              now.setHours(23, 59, 59, 999) // End of today
+                              now.setHours(23, 59, 59, 999)
                               const days = recentScansRange === '7d' ? 7 : recentScansRange === '14d' ? 14 : recentScansRange === '30d' ? 30 : 90
                               const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
-                              startDate.setHours(0, 0, 0, 0) // Start of day
+                              startDate.setHours(0, 0, 0, 0)
+
                               const recentScans = scanRecords.filter(s => {
                                 const car = cars.find(c => c.id === s.car_id)
                                 const scanDate = new Date(s.scanned_at)
                                 return car?.company_id === company.id && scanDate >= startDate && scanDate <= now
                               })
-                              return recentScans.length === 0 ? (
-                                <p className="text-gray-500 text-sm">No scans in the selected period</p>
-                              ) : (
-                                <div className="space-y-1 max-h-60 overflow-y-auto">
-                                  {recentScans.slice(0, 20).map(scan => {
-                                    const car = cars.find(c => c.id === scan.car_id)
-                                    const scanDate = new Date(scan.scanned_at)
-                                    const today = new Date()
-                                    today.setHours(0, 0, 0, 0)
-                                    const isToday = scanDate >= today
-                                    const displayDate = isToday
-                                      ? `Today ${scanDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                      : scanDate.toLocaleDateString()
-                                    return (
-                                      <div key={scan.id} className={`flex justify-between text-sm p-2 rounded ${isToday ? 'bg-green-50' : 'bg-gray-50'}`}>
-                                        <span>{car?.make} {car?.model}</span>
-                                        <span className={`${isToday ? 'text-green-600 font-medium' : 'text-gray-500'}`}>{displayDate}</span>
-                                      </div>
-                                    )
-                                  })}
+                              return (
+                                <div>
+                                  <p className="text-sm text-gray-500 mb-2">{recentScans.length} scan{recentScans.length !== 1 ? 's' : ''} in this period</p>
+                                  {recentScans.length === 0 ? (
+                                    <p className="text-gray-400 text-sm">No scans recorded</p>
+                                  ) : (
+                                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                                      {recentScans.map(scan => {
+                                        const car = cars.find(c => c.id === scan.car_id)
+                                        // Parse date - Supabase returns ISO format
+                                        const scanDate = new Date(scan.scanned_at)
+                                        const today = new Date()
+                                        today.setHours(0, 0, 0, 0)
+                                        const isToday = scanDate >= today && scanDate <= new Date()
+                                        const displayDate = isToday
+                                          ? `Today ${scanDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                          : scanDate.toLocaleDateString()
+                                        return (
+                                          <div key={scan.id} className={`flex justify-between text-sm p-2 rounded ${isToday ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                            <span>{car?.make} {car?.model}</span>
+                                            <span className={`${isToday ? 'text-green-600 font-medium' : 'text-gray-500'}`}>{displayDate}</span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })()}
@@ -4318,6 +4363,52 @@ export default function App() {
                 <div className="col-span-2">
                   <label className="block text-sm font-medium mb-1">Description</label>
                   <textarea value={editingCar.description} onChange={(e) => setEditingCar({ ...editingCar, description: e.target.value })} className="w-full p-3 border rounded-lg h-20" placeholder="Car description..." />
+                </div>
+                {/* Vehicle Regulatory Information */}
+                <div className="col-span-2 border-t pt-4">
+                  <label className="block text-sm font-semibold mb-3 text-gray-700">Vehicle Regulatory Information</label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">CCR No.</label>
+                      <input type="text" value={editingCar.ccr_no || ''} onChange={(e) => setEditingCar({ ...editingCar, ccr_no: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="CCR Number" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Approved On</label>
+                      <input type="date" value={editingCar.approved_on || ''} onChange={(e) => setEditingCar({ ...editingCar, approved_on: e.target.value })} className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Produced In & After</label>
+                      <input type="text" value={editingCar.produced_in_and_after || ''} onChange={(e) => setEditingCar({ ...editingCar, produced_in_and_after: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., 2024" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Country of Production</label>
+                      <input type="text" value={editingCar.country_of_production || ''} onChange={(e) => setEditingCar({ ...editingCar, country_of_production: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., USA, Japan" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Pollutant Limits</label>
+                      <input type="text" value={editingCar.pollutant_limits || ''} onChange={(e) => setEditingCar({ ...editingCar, pollutant_limits: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., Euro 6" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">VIN</label>
+                      <input type="text" value={editingCar.vin || ''} onChange={(e) => setEditingCar({ ...editingCar, vin: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="Vehicle ID Number" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Label No.</label>
+                      <input type="text" value={editingCar.label_no || ''} onChange={(e) => setEditingCar({ ...editingCar, label_no: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="Label Number" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
+                      <input type="text" value={editingCar.manufacturer || ''} onChange={(e) => setEditingCar({ ...editingCar, manufacturer: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="Manufacturer Name" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Motor Vehicle Class</label>
+                      <input type="text" value={editingCar.motor_vehicle_class || ''} onChange={(e) => setEditingCar({ ...editingCar, motor_vehicle_class: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., Class 1" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">FE (CAFE) Combined</label>
+                      <input type="text" value={editingCar.fe_cafe_combined || ''} onChange={(e) => setEditingCar({ ...editingCar, fe_cafe_combined: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., 45 MPG" />
+                    </div>
+                  </div>
                 </div>
                 <div className="col-span-2 border-t pt-4">
                   <label className="block text-sm font-medium mb-3">QR Scan Timeframe</label>

@@ -53,6 +53,17 @@ interface Car {
   scan_start_date: string
   scan_end_date: string
   scan_count: number
+  // Vehicle Regulatory Information
+  ccr_no?: string
+  approved_on?: string
+  produced_in_and_after?: string
+  country_of_production?: string
+  pollutant_limits?: string
+  vin?: string
+  label_no?: string
+  manufacturer?: string
+  motor_vehicle_class?: string
+  fe_cafe_combined?: string
 }
 
 interface Company {
@@ -86,6 +97,9 @@ const qrTemplates = [
   { id: 'minimalist', name: 'Minimalist', fgColor: '#000000', bgColor: '#ffffff' },
   { id: 'sports', name: 'Sports', fgColor: '#ffffff', bgColor: '#0f172a' },
   { id: 'eco', name: 'Eco', fgColor: '#ffffff', bgColor: '#16a34a' },
+  { id: 'ev', name: 'EV', fgColor: '#ffffff', bgColor: '#2563eb' },
+  { id: 'hybrid', name: 'Hybrid', fgColor: '#ffffff', bgColor: '#22c55e' },
+  { id: 'plugin_hybrid', name: 'Plug-in Hybrid', fgColor: '#ffffff', bgColor: '#06b6d4' },
 ]
 
 // QR Frames - decorative frame styles
@@ -265,7 +279,18 @@ export default function CustomerApp() {
           is_active: carData.is_active ?? true,
           scan_start_date: carData.scan_start_date || '',
           scan_end_date: carData.scan_end_date || '',
-          scan_count: carData.scan_count || 0
+          scan_count: carData.scan_count || 0,
+          // Vehicle Regulatory Information
+          ccr_no: carData.ccr_no || '',
+          approved_on: carData.approved_on || '',
+          produced_in_and_after: carData.produced_in_and_after || '',
+          country_of_production: carData.country_of_production || '',
+          pollutant_limits: carData.pollutant_limits || '',
+          vin: carData.vin || '',
+          label_no: carData.label_no || '',
+          manufacturer: carData.manufacturer || '',
+          motor_vehicle_class: carData.motor_vehicle_class || '',
+          fe_cafe_combined: carData.fe_cafe_combined || ''
         }
 
         setCar(car)
@@ -690,6 +715,75 @@ export default function CustomerApp() {
             <div className="mb-6">
               <h3 className="font-semibold text-gray-800 mb-2">Description</h3>
               <p className="text-gray-600 leading-relaxed">{car.description}</p>
+            </div>
+          )}
+
+          {/* Vehicle Regulatory Information */}
+          {(car.ccr_no || car.approved_on || car.produced_in_and_after || car.country_of_production || car.pollutant_limits || car.vin || car.label_no || car.manufacturer || car.motor_vehicle_class || car.fe_cafe_combined) && (
+            <div className="mb-6 bg-blue-50 rounded-xl p-4">
+              <h3 className="font-semibold text-blue-800 mb-3">Vehicle Regulatory Information</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {car.vin && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">VIN</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.vin}</p>
+                  </div>
+                )}
+                {car.ccr_no && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">CCR No.</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.ccr_no}</p>
+                  </div>
+                )}
+                {car.label_no && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Label No.</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.label_no}</p>
+                  </div>
+                )}
+                {car.manufacturer && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Manufacturer</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.manufacturer}</p>
+                  </div>
+                )}
+                {car.motor_vehicle_class && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Motor Vehicle Class</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.motor_vehicle_class}</p>
+                  </div>
+                )}
+                {car.country_of_production && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Country of Production</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.country_of_production}</p>
+                  </div>
+                )}
+                {car.produced_in_and_after && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Produced In & After</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.produced_in_and_after}</p>
+                  </div>
+                )}
+                {car.pollutant_limits && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Pollutant Limits</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.pollutant_limits}</p>
+                  </div>
+                )}
+                {car.fe_cafe_combined && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">FE (CAFE) Combined</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.fe_cafe_combined}</p>
+                  </div>
+                )}
+                {car.approved_on && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Approved On</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.approved_on}</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

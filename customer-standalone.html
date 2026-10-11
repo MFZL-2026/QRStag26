@@ -45,6 +45,9 @@
       { id: 'minimalist', name: 'Minimalist', fgColor: '#000000', bgColor: '#ffffff', borderColor: '#e5e7eb' },
       { id: 'sports', name: 'Sports', fgColor: '#ffffff', bgColor: '#0f172a', borderColor: '#22c55e' },
       { id: 'eco', name: 'Eco', fgColor: '#ffffff', bgColor: '#16a34a', borderColor: '#15803d' },
+      { id: 'ev', name: 'EV', fgColor: '#ffffff', bgColor: '#2563eb', borderColor: '#1d4ed8' },
+      { id: 'hybrid', name: 'Hybrid', fgColor: '#ffffff', bgColor: '#22c55e', borderColor: '#16a34a' },
+      { id: 'plugin_hybrid', name: 'Plug-in Hybrid', fgColor: '#ffffff', bgColor: '#06b6d4', borderColor: '#0891b2' },
     ];
 
     // State - Default values that match database settings
@@ -493,6 +496,25 @@
               <div class="mb-6">
                 <h3 class="font-semibold text-gray-800 mb-2">Description</h3>
                 <p class="text-gray-600 leading-relaxed">${car.description}</p>
+              </div>
+            ` : ''}
+
+            <!-- Vehicle Regulatory Information -->
+            ${(car.ccr_no || car.vin || car.approved_on || car.produced_in_and_after || car.country_of_production || car.pollutant_limits || car.label_no || car.manufacturer || car.motor_vehicle_class || car.fe_cafe_combined) ? `
+              <div class="mb-6 bg-blue-50 rounded-xl p-4">
+                <h3 class="font-semibold text-blue-800 mb-3">Vehicle Regulatory Information</h3>
+                <div class="grid grid-cols-2 gap-3">
+                  ${car.ccr_no ? `<div><p class="text-xs text-blue-500 mb-1">CCR No</p><p class="font-medium text-sm">${car.ccr_no}</p></div>` : ''}
+                  ${car.approved_on ? `<div><p class="text-xs text-blue-500 mb-1">Approved On</p><p class="font-medium text-sm">${car.approved_on}</p></div>` : ''}
+                  ${car.produced_in_and_after ? `<div><p class="text-xs text-blue-500 mb-1">Produced In & After</p><p class="font-medium text-sm">${car.produced_in_and_after}</p></div>` : ''}
+                  ${car.country_of_production ? `<div><p class="text-xs text-blue-500 mb-1">Country of Production</p><p class="font-medium text-sm">${car.country_of_production}</p></div>` : ''}
+                  ${car.pollutant_limits ? `<div><p class="text-xs text-blue-500 mb-1">Pollutant Limits</p><p class="font-medium text-sm">${car.pollutant_limits}</p></div>` : ''}
+                  ${car.vin ? `<div><p class="text-xs text-blue-500 mb-1">VIN</p><p class="font-medium text-sm">${car.vin}</p></div>` : ''}
+                  ${car.label_no ? `<div><p class="text-xs text-blue-500 mb-1">Label No</p><p class="font-medium text-sm">${car.label_no}</p></div>` : ''}
+                  ${car.manufacturer ? `<div><p class="text-xs text-blue-500 mb-1">Manufacturer</p><p class="font-medium text-sm">${car.manufacturer}</p></div>` : ''}
+                  ${car.motor_vehicle_class ? `<div><p class="text-xs text-blue-500 mb-1">Motor Vehicle Class</p><p class="font-medium text-sm">${car.motor_vehicle_class}</p></div>` : ''}
+                  ${car.fe_cafe_combined ? `<div><p class="text-xs text-blue-500 mb-1">FE (CAFE) Combined</p><p class="font-medium text-sm">${car.fe_cafe_combined}</p></div>` : ''}
+                </div>
               </div>
             ` : ''}
 
