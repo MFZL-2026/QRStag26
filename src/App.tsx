@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toCanvas } from 'qrcode'
 import html2canvas from 'html2canvas'
-import { Car, Phone, Mail, Plus, Trash2, Edit3, LogOut, Eye, X, Save, Loader2, Building2, ChevronDown, ChevronUp, Image, FileText, ArrowLeft, Printer, Hexagon, Sparkles, Users, TrendingUp, Download, Upload, Search, Bell, Globe, Zap, Star, Crown, Database, Settings, Link2, ChevronRight, Filter, Calendar, DollarSign, PieChart as LucidePieChart, Activity, ArrowUpRight, ArrowDownRight, MessageCircle, UserPlus, Shield, Key, Smartphone, Maximize2 } from 'lucide-react'
+import { Car, Phone, Mail, Plus, Trash2, Edit3, LogOut, Eye, X, Save, Loader2, Building2, ChevronDown, ChevronUp, Image, FileText, ArrowLeft, Printer, Hexagon, Sparkles, Users, TrendingUp, Download, Upload, Search, Bell, Globe, Zap, Star, Crown, Database, Settings, Link2, ChevronRight, Filter, Calendar, DollarSign, PieChart as LucidePieChart, Activity, ArrowUpRight, ArrowDownRight, MessageCircle, UserPlus, Shield, Key, Smartphone, Maximize2, ExternalLink } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import * as Recharts from 'recharts'
 
@@ -3271,6 +3271,9 @@ export default function App() {
                                       </button>
                                       <button onClick={() => printSingleCarQR(car.id)} className="flex items-center justify-center gap-1 px-2 py-1 bg-green-100 rounded text-sm text-green-700">
                                         <Printer className="w-3 h-3" />
+                                      </button>
+                                      <button onClick={() => window.open(getCarUrl(car.id), '_blank')} className="flex items-center justify-center gap-1 px-2 py-1 bg-purple-100 rounded text-sm text-purple-700" title="Preview Customer View">
+                                        <ExternalLink className="w-3 h-3" />
                                       </button>
                                       {hasPermission('car_edit') && (
                                         <button onClick={() => {
