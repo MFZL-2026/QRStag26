@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toCanvas } from 'qrcode'
 import html2canvas from 'html2canvas'
+import imageCompression from 'browser-image-compression'
 import { Car, Phone, Mail, Plus, Trash2, Edit3, LogOut, Eye, X, Save, Loader2, Building2, ChevronDown, ChevronUp, Image, FileText, ArrowLeft, Printer, Hexagon, Sparkles, Users, TrendingUp, Download, Upload, Search, Bell, Globe, Zap, Star, Crown, Database, Settings, Link2, ChevronRight, Filter, Calendar, DollarSign, PieChart as LucidePieChart, Activity, ArrowUpRight, ArrowDownRight, MessageCircle, UserPlus, Shield, Key, Smartphone, Maximize2, ExternalLink } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import * as Recharts from 'recharts'
@@ -385,6 +386,14 @@ function emptyCar(companyId: string = ''): CarData {
 
 function emptyLeadForm(): NewLeadForm {
   return { name: '', phone: '', email: '', interest_level: 'normal', notes: '' }
+}
+
+// Image compression settings for car photos
+const IMAGE_COMPRESSION_OPTIONS = {
+  maxSizeMB: 0.1, // 100KB max
+  maxWidthOrHeight: 1200, // Max dimension 1200px
+  useWebWorker: true,
+  fileType: 'image/jpeg' as const
 }
 
 function getPriceNumeric(price: string): number {
@@ -1063,6 +1072,62 @@ export default function App() {
       setEditingCompany({ ...editingCompany, branding_logo: reader.result as string })
     }
     reader.readAsDataURL(file)
+  }
+
+  // Compress and add car images
+  async function handleCarImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || !editingCar) return
+
+    const currentImages = editingCar.images || []
+    if (currentImages.length >= 10) {
+      alert('Maximum 10 images allowed per car')
+      return
+    }
+
+    const newImages: string[] = []
+    const maxImages = Math.min(files.length, 10 - currentImages.length)
+
+    for (let i = 0; i < maxImages; i++) {
+      const file = files[i]
+      try {
+        // Compress image to max 100KB
+        const compressedFile = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS)
+
+        // Convert to base64
+        const reader = new FileReader()
+        const imageData = await new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(compressedFile)
+        })
+        newImages.push(imageData)
+
+        // Log compression stats
+        const originalSize = (file.size / 1024).toFixed(1)
+        const compressedSize = (compressedFile.size / 1024).toFixed(1)
+        console.log(`Image compressed: ${originalSize}KB -> ${compressedSize}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% reduction)`)
+      } catch (err) {
+        console.error('Image compression error:', err)
+        // Fallback: use original image without compression
+        const reader = new FileReader()
+        const imageData = await new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(file)
+        })
+        newImages.push(imageData)
+      }
+    }
+
+    setEditingCar({ ...editingCar, images: [...currentImages, ...newImages] })
+    e.target.value = '' // Reset input
+  }
+
+  // Remove car image
+  function removeCarImage(index: number) {
+    if (!editingCar) return
+    const newImages = [...(editingCar.images || [])]
+    newImages.splice(index, 1)
+    setEditingCar({ ...editingCar, images: newImages })
   }
 
   async function handleSaveCompany() {
@@ -4366,6 +4431,47 @@ export default function App() {
                 <div className="col-span-2">
                   <label className="block text-sm font-medium mb-1">Description</label>
                   <textarea value={editingCar.description} onChange={(e) => setEditingCar({ ...editingCar, description: e.target.value })} className="w-full p-3 border rounded-lg h-20" placeholder="Car description..." />
+                </div>
+                {/* Car Images with Compression */}
+                <div className="col-span-2 border-t pt-4">
+                  <label className="block text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Image className="w-4 h-4" />Car Photos (Auto-compressed to 100KB)
+                    <span className="text-xs font-normal text-gray-500">Max 10 images</span>
+                  </label>
+                  {/* Existing Images */}
+                  {editingCar.images && editingCar.images.length > 0 && (
+                    <div className="grid grid-cols-5 gap-2 mb-3">
+                      {editingCar.images.map((img, idx) => (
+                        <div key={idx} className="relative group">
+                          <img src={img} alt="" className="w-full h-20 object-cover rounded-lg border" />
+                          <button
+                            type="button"
+                            onClick={() => removeCarImage(idx)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Upload Button */}
+                  {(!editingCar.images || editingCar.images.length < 10) && (
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <div className="flex flex-col items-center justify-center pt-2 pb-3">
+                        <Upload className="w-8 h-8 text-gray-400 mb-1" />
+                        <p className="text-sm text-gray-500">Click to upload</p>
+                        <p className="text-xs text-gray-400">Images auto-compressed to 100KB</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleCarImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
                 </div>
                 {/* Vehicle Regulatory Information */}
                 <div className="col-span-2 border-t pt-4">
