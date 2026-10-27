@@ -31,10 +31,11 @@
 <body class="min-h-screen" id="body">
   <div id="app"></div>
 
+  <script src="/runtime-config.js"></script>
   <script type="module">
-    // Supabase configuration
-    const SUPABASE_URL = 'https://uifcfnkbccluhyryywxe.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU';
+    // Supabase configuration (from runtime-config.js - editable without rebuild)
+    const SUPABASE_URL = (window.__APP_CONFIG__ && window.__APP_CONFIG__.supabaseUrl) || 'https://uifcfnkbccluhyryywxe.supabase.co';
+    const SUPABASE_KEY = (window.__APP_CONFIG__ && window.__APP_CONFIG__.supabaseAnonKey) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU';
 
     // QR Templates - Matched with main app QR_TEMPLATES
     const qrTemplates = [
