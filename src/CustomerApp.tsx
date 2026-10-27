@@ -12,9 +12,21 @@ const PRINT_SIZES = [
   { id: 'a3', name: 'A3', width: 842, height: 1191, desc: '297×420mm' },
 ]
 
-// Supabase client
-const supabaseUrl = 'https://uifcfnkbccluhyryywxe.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU'
+// Supabase client - configuration comes from /runtime-config.js (editable without rebuild)
+declare global {
+  interface Window {
+    __APP_CONFIG__?: {
+      supabaseUrl?: string
+      supabaseAnonKey?: string
+    }
+  }
+}
+
+const FALLBACK_SUPABASE_URL = 'https://uifcfnkbccluhyryywxe.supabase.co'
+const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU'
+
+const supabaseUrl = (typeof window !== 'undefined' && window.__APP_CONFIG__?.supabaseUrl) || FALLBACK_SUPABASE_URL
+const supabaseAnonKey = (typeof window !== 'undefined' && window.__APP_CONFIG__?.supabaseAnonKey) || FALLBACK_SUPABASE_ANON_KEY
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -236,7 +248,15 @@ export default function CustomerApp() {
           .single()
 
         if (carError || !carData) {
-          setError('Car not found')
+          // Distinguish "backend unreachable" from "record genuinely missing"
+          const msg = String(carError?.message || '')
+          if (/fetch|network|dns|failed to fetch|load failed|timeout/i.test(msg)) {
+            setError('Cannot reach the database. Please check your connection and try again.')
+          } else if (carError && !/0 rows|PGRST116/i.test(msg)) {
+            setError('Database error: ' + msg)
+          } else {
+            setError('Car not found')
+          }
           return
         }
 

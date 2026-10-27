@@ -413,6 +413,7 @@ export default function App() {
   const [editingCar, setEditingCar] = useState<CarData | null>(null)
   const [viewingCarId, setViewingCarId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [dataKey, setDataKey] = useState(0) // Force re-render key
@@ -561,6 +562,19 @@ export default function App() {
         videoLink: car.video_link || ''
       }))
 
+      // Surface backend connectivity problems instead of silently showing an empty list
+      const firstError = carsRes.error || companiesRes.error || scansRes.error || leadsRes.error
+      if (firstError) {
+        const msg = String(firstError.message || '')
+        setConnectionError(
+          /fetch|network|dns|failed to fetch|load failed|timeout/i.test(msg)
+            ? 'Cannot reach the database. The Supabase project may be paused, deleted, or the URL/key in runtime-config.js is wrong.'
+            : 'Database error: ' + msg
+        )
+      } else {
+        setConnectionError(null)
+      }
+
       setCompanies(companiesRes.data || [])
       setCars(mappedCars)
       setScanRecords(scansRes.data || [])
@@ -571,6 +585,8 @@ export default function App() {
       console.log(`Data refreshed: ${scansRes.data?.length || 0} scan records, ${leadsRes.data?.length || 0} leads`)
     } catch (err) {
       console.error('Error fetching data:', err)
+      setConnectionError('Cannot reach the database: ' + (err instanceof Error ? err.message : String(err)))
+      if (!isRefresh) setLoading(false)
     }
     setRefreshing(false)
   }, [])
@@ -2438,6 +2454,22 @@ export default function App() {
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto p-4">
+          {connectionError && (
+            <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-xl p-4">
+              <Shield className="w-5 h-5 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="font-semibold">Database connection problem</p>
+                <p className="text-sm mt-1">{connectionError}</p>
+                <p className="text-sm mt-1 text-red-700">
+                  Cars and leads cannot load until the database is reachable. Check the Supabase project status and
+                  the values in <code className="px-1 bg-red-100 rounded">runtime-config.js</code>.
+                </p>
+              </div>
+              <button onClick={() => fetchData(true)} disabled={refreshing} className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm disabled:opacity-50">
+                <Loader2 className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />Retry
+              </button>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {appSettings.app_logo ? (
