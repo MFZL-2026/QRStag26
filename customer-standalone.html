@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Car Details</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     .spinner {
       border: 4px solid #f3f3f3;
@@ -33,6 +32,10 @@
 
   <script src="/runtime-config.js"></script>
   <script type="module">
+    // The QR library is bundled by Vite — the old unpkg URL (qrcode@1.5.3/build/
+    // qrcode.min.js) returns 404 because the package ships no browser bundle.
+    import { toCanvas } from 'qrcode';
+
     // Supabase configuration (from runtime-config.js - editable without rebuild)
     const SUPABASE_URL = (window.__APP_CONFIG__ && window.__APP_CONFIG__.supabaseUrl) || 'https://uifcfnkbccluhyryywxe.supabase.co';
     const SUPABASE_KEY = (window.__APP_CONFIG__ && window.__APP_CONFIG__.supabaseAnonKey) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU';
@@ -62,7 +65,9 @@
       showLeadForm: false,
       leadSaved: false,
       appName: 'QRSTag',  // Default app name - loaded from database
-      customQrUrl: 'https://mfzl-2026.github.io/QRStag26',  // GitHub Pages URL
+      // Base URL encoded into the QR image. Empty means "use the URL this page
+      // was opened from" — the admin can override it via app_settings.custom_qr_url.
+      customQrUrl: '',
       saving: false,
       leadForm: { name: '', phone: '', email: '', interest_level: 'normal', notes: '' }
     };
@@ -225,25 +230,43 @@
             console.error('✗ Scan record error:', err);
           });
 
-          // Update scan count on car record
-          fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}`, {
-            method: 'PATCH',
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify({
-              scan_count: newScanCount,
-              last_scanned_at: scanTime
-            })
-          }).then(res => {
-            if (res.ok) {
-              console.log('✓ Scan count updated to:', newScanCount);
-            } else {
-              console.error('✗ Scan count update failed:', res.status);
+          // Update scan count on car record.
+          // The counter columns are optional: if this database does not have
+          // them, PostgREST rejects the whole request (PGRST204). Retry without
+          // the offending column instead of failing — the scan itself has
+          // already been recorded in scan_records.
+          const updateScanCount = async (payload) => {
+            let body = { ...payload };
+            for (let attempt = 0; attempt < 4; attempt++) {
+              const res = await fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}`, {
+                method: 'PATCH',
+                headers: {
+                  'apikey': SUPABASE_KEY,
+                  'Authorization': `Bearer ${SUPABASE_KEY}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify(body)
+              });
+              if (res.ok) {
+                console.log('✓ Scan count updated to:', newScanCount);
+                return true;
+              }
+              const text = await res.text();
+              const match = text.match(/Could not find the '([^']+)' column/);
+              if (match && match[1] in body) {
+                console.warn(`⚠ Database has no "${match[1]}" column — skipping scan counter update`);
+                delete body[match[1]];
+                continue;
+              }
+              console.error('✗ Scan count update failed:', res.status, text);
+              return false;
             }
+            return false;
+          };
+          updateScanCount({
+            scan_count: newScanCount,
+            last_scanned_at: scanTime
           }).catch(err => {
             console.error('✗ Scan count update error:', err);
           });
@@ -345,9 +368,9 @@
 
       // QRCode options with error correction level
       // Higher error correction for shapes with cut-off corners (circle, pill, etc.)
-      const errorCorrectionLevel = isEnhancedScannable ? QRCode.CorrectLevel.M : QRCode.CorrectLevel.L;
+      const errorCorrectionLevel = isEnhancedScannable ? 'M' : 'L';
 
-      QRCode.toCanvas(qrUrl, {
+      toCanvas(qrUrl, {
         width: 200,
         margin: 2,
         errorCorrectionLevel: errorCorrectionLevel,
@@ -555,13 +578,22 @@
             </button>
           </div>
 
-          <!-- QR Code Card - WITH TEMPLATE COLORS (No QR Code, Just Branding) -->
+          <!-- QR Code Card - WITH TEMPLATE COLORS (branding + the actual QR image) -->
           <div class="rounded-2xl shadow-lg p-6 mb-6" style="background: ${colors.bg}; border: 4px solid ${colors.border}">
             <div class="text-center">
               ${company?.branding_logo ? `
                 <img src="${company.branding_logo}" alt="Company Logo" class="w-32 h-32 object-contain mx-auto mb-4">
               ` : ''}
               <h2 class="text-2xl font-bold" style="color: ${colors.fg}">${company?.name || 'Dealership'}</h2>
+
+              <!-- The QR image itself. initQRCode() fills this container with a
+                   canvas; without this element the QR was never rendered. -->
+              ${isActive ? `
+                <div class="mt-4 flex justify-center">
+                  <div id="qr-code"></div>
+                </div>
+                <p class="text-xs mt-2" style="color: ${colors.fg}; opacity: 0.7">Scan to view full vehicle details</p>
+              ` : ''}
             </div>
           </div>
 
@@ -661,62 +693,59 @@
 
     window.saveLead = saveLead;
 
-    // ULTRA AGGRESSIVE: Hide platform footer - run immediately and repeatedly
+    // Hide the platform footer/badge injected by the hosting provider.
+    //
+    // This MUST stay cheap and idempotent: an earlier version re-applied inline
+    // styles on every animation frame and also from a MutationObserver that
+    // watched attributes — the two kept mutating the DOM for each other and the
+    // page pegged the CPU at 100% and never became interactive.
+    const HIDDEN_STYLE = 'display: none !important; visibility: hidden !important; height: 0 !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important;';
+
+    function hideElement(el, style) {
+      if (!el || el.id === 'app') return;
+      if (el.getAttribute('data-platform-hidden') === style) return;
+      el.setAttribute('data-platform-hidden', style);
+      el.style.cssText = style;
+    }
+
     function hideAllPlatformFooters() {
       // 1. Hide last child of body (common platform footer position)
-      const body = document.body;
-      const lastChild = body.lastElementChild;
+      const lastChild = document.body.lastElementChild;
       if (lastChild && lastChild.id !== 'app' && lastChild.tagName !== 'SCRIPT') {
-        lastChild.style.cssText = 'display: none !important; visibility: hidden !important; height: 0 !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important;';
-        lastChild.removeAttribute('class');
+        hideElement(lastChild, HIDDEN_STYLE);
       }
 
-      // 2. Search ALL elements for "MiniMax" text
-      const allElements = document.querySelectorAll('*');
-      allElements.forEach(el => {
-        if (el.id !== 'app') {
-          const text = el.textContent || '';
-          if (text.includes('MiniMax') || text.includes('mcode') || text.includes('Created by')) {
-            el.style.cssText = 'display: none !important; visibility: hidden !important;';
-          }
-        }
-      });
-
-      // 3. Remove any fixed/bottom positioned elements from platform
-      const fixedElements = document.querySelectorAll('[style*="position: fixed"], [style*="position:absolute"]');
-      fixedElements.forEach(el => {
-        if (el.id !== 'app') {
-          const text = el.textContent || '';
-          if (text.includes('MiniMax') || text.includes('mcode')) {
-            el.style.cssText = 'display: none !important;';
-          }
+      // 2. Hide any element carrying the platform's signature text
+      document.querySelectorAll('*').forEach(el => {
+        if (el.id === 'app' || el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
+        const text = el.textContent || '';
+        if (text.includes('MiniMax') || text.includes('mcode') || text.includes('Created by')) {
+          hideElement(el, 'display: none !important; visibility: hidden !important;');
         }
       });
     }
 
-    // Run immediately and repeatedly
+    // Run immediately, then a few times while the provider injects its badge
     hideAllPlatformFooters();
-    setTimeout(hideAllPlatformFooters, 50);
-    setTimeout(hideAllPlatformFooters, 100);
-    setTimeout(hideAllPlatformFooters, 200);
-    setTimeout(hideAllPlatformFooters, 500);
-    setTimeout(hideAllPlatformFooters, 1000);
-    setTimeout(hideAllPlatformFooters, 2000);
+    [50, 100, 200, 500, 1000, 2000].forEach(delay => {
+      setTimeout(hideAllPlatformFooters, delay);
+    });
 
-    // Continuous monitoring
+    // Watch for the provider adding its badge later on. Only childList changes
+    // are observed — watching attributes would re-enter this callback on every
+    // style change and freeze the page.
     if (typeof MutationObserver !== 'undefined') {
+      let scheduled = false;
       const observer = new MutationObserver(() => {
-        hideAllPlatformFooters();
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => {
+          scheduled = false;
+          hideAllPlatformFooters();
+        });
       });
-      observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+      observer.observe(document.body, { childList: true, subtree: true });
     }
-
-    // Also use requestAnimationFrame for maximum responsiveness
-    function frameHide() {
-      hideAllPlatformFooters();
-      requestAnimationFrame(frameHide);
-    }
-    requestAnimationFrame(frameHide);
 
     // Initialize
     loadAppName();

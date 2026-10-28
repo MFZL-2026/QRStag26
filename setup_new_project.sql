@@ -161,15 +161,34 @@ CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at DESC);
 -- ---------------------------------------------------------------
 CREATE OR REPLACE FUNCTION sync_car_compat_fields() RETURNS trigger AS $$
 BEGIN
-  IF NEW.contact_phone IS NULL AND NEW."contactPhone" IS NOT NULL THEN
-    NEW.contact_phone := NEW."contactPhone";
-  END IF;
-  IF NEW.contact_email IS NULL AND NEW."contactEmail" IS NOT NULL THEN
-    NEW.contact_email := NEW."contactEmail";
-  END IF;
-  IF NEW.fuel_type IS NULL AND NEW."fuelType" IS NOT NULL THEN
+  -- The admin app always writes the camelCase spelling, the customer views
+  -- read the snake_case spelling. Whichever one actually changed in this
+  -- statement wins, so an edit can never leave a stale value behind in the
+  -- other spelling.
+  IF NEW."fuelType" IS DISTINCT FROM OLD."fuelType" THEN
+    NEW.fuel_type := NEW."fuelType";
+  ELSIF NEW.fuel_type IS DISTINCT FROM OLD.fuel_type THEN
+    NEW."fuelType" := NEW.fuel_type;
+  ELSIF NEW."fuelType" IS NOT NULL THEN
     NEW.fuel_type := NEW."fuelType";
   END IF;
+
+  IF NEW."contactPhone" IS DISTINCT FROM OLD."contactPhone" THEN
+    NEW.contact_phone := NEW."contactPhone";
+  ELSIF NEW.contact_phone IS DISTINCT FROM OLD.contact_phone THEN
+    NEW."contactPhone" := NEW.contact_phone;
+  ELSIF NEW."contactPhone" IS NOT NULL THEN
+    NEW.contact_phone := NEW."contactPhone";
+  END IF;
+
+  IF NEW."contactEmail" IS DISTINCT FROM OLD."contactEmail" THEN
+    NEW.contact_email := NEW."contactEmail";
+  ELSIF NEW.contact_email IS DISTINCT FROM OLD.contact_email THEN
+    NEW."contactEmail" := NEW.contact_email;
+  ELSIF NEW."contactEmail" IS NOT NULL THEN
+    NEW.contact_email := NEW."contactEmail";
+  END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

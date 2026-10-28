@@ -4,7 +4,7 @@ import { toCanvas } from 'qrcode'
 import html2canvas from 'html2canvas'
 import imageCompression from 'browser-image-compression'
 import { Car, Phone, Mail, Plus, Trash2, Edit3, LogOut, Eye, X, Save, Loader2, Building2, ChevronDown, ChevronUp, Image, FileText, ArrowLeft, Printer, Hexagon, Sparkles, Users, TrendingUp, Download, Upload, Search, Bell, Globe, Zap, Star, Crown, Database, Settings, Link2, ChevronRight, Filter, Calendar, DollarSign, PieChart as LucidePieChart, Activity, ArrowUpRight, ArrowDownRight, MessageCircle, UserPlus, Shield, Key, Smartphone, Maximize2, ExternalLink } from 'lucide-react'
-import { supabase } from './lib/supabase'
+import { supabase, upsertTolerant, insertTolerant } from './lib/supabase'
 import * as Recharts from 'recharts'
 
 // Print size options - A4 optimized (210mm x 297mm)
@@ -836,6 +836,7 @@ export default function App() {
         // Only record if within valid timeframe
         if ((!scanStart || now >= scanStart) && (!scanEnd || now <= scanEnd)) {
           await supabase.from('scan_records').insert([{
+            id: generateId(),
             car_id: carId,
             scanned_at: new Date().toISOString()
           }])
@@ -983,6 +984,11 @@ export default function App() {
       setUserLoginEmail('')
       setUserLoginPassword('')
       addNotification('report', 'Welcome!', `Logged in as ${user.name} (${user.role.replace('_', ' ')})`)
+
+      // Load the data straight away — otherwise the dashboard stays empty until
+      // the 15 second auto-refresh timer fires.
+      fetchData()
+      fetchAppSettings()
     } else {
       alert('Invalid email or password')
     }
@@ -1159,11 +1165,20 @@ export default function App() {
         branding_color: editingCompany.branding_color?.startsWith('#') ? editingCompany.branding_color : `#${editingCompany.branding_color || '3b82f6'}`,
         branding_logo: editingCompany.branding_logo || ''
       }
-      const { error } = await supabase.from('companies').upsert([companyToSave])
-      if (error) throw error
+      // Tolerant upsert: if the database is missing a column (e.g. "plan"), the
+      // save still succeeds and the missing field is reported to the user.
+      const result = await upsertTolerant('companies', companyToSave)
+      if (!result.ok) throw result.error
       await fetchData()
       setEditingCompany(null)
       addNotification('report', 'Company Saved', `${editingCompany.name} has been ${companies.find(c => c.id === editingCompany.id) ? 'updated' : 'created'}`)
+      if (result.droppedColumns.length > 0) {
+        addNotification(
+          'report',
+          'Some fields were not saved',
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+        )
+      }
     } catch (err) {
       console.error('Error saving company:', err)
       alert('Error saving company')
@@ -1234,16 +1249,35 @@ export default function App() {
       delete (carToSave as any).videoLink
       // Remove video_link as column doesn't exist in database yet
       delete (carToSave as any).video_link
-      const { error } = await supabase.from('cars').upsert([carToSave])
-      if (error) throw error
+      const result = await upsertTolerant('cars', carToSave)
+      if (!result.ok) throw result.error
       await fetchData()
       setEditingCar(null)
       addNotification('report', 'Car Saved', `${editingCar.year} ${actualMake} ${actualModel} has been ${cars.find(c => c.id === editingCar.id) ? 'updated' : 'added'}`)
+      if (result.droppedColumns.length > 0) {
+        addNotification(
+          'report',
+          'Some fields were not saved',
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+        )
+      }
     } catch (err) {
       console.error('Error saving car:', err)
       alert('Error saving car')
     }
     setSaving(false)
+  }
+
+  async function handleAssignCar(carId: string, companyId: string) {
+    if (!companyId) return
+    const { error } = await supabase.from('cars').update({ company_id: companyId }).eq('id', carId)
+    if (error) {
+      console.error('Error assigning car:', error)
+      addNotification('lead', 'Assignment failed', String(error.message || error))
+      return
+    }
+    await fetchData()
+    addNotification('report', 'Vehicle Assigned', 'The vehicle now belongs to the selected company.')
   }
 
   async function handleDeleteCar(carId: string) {
@@ -1262,7 +1296,9 @@ export default function App() {
     const scanEnd = car.scan_end_date ? new Date(car.scan_end_date) : null
     if (scanStart && now < scanStart) return
     if (scanEnd && now > scanEnd) return
-    const { error } = await supabase.from('scan_records').insert([{ car_id: carId, scanned_at: new Date().toISOString() }])
+    // The id must be supplied by the client: some projects have scan_records.id
+    // as NOT NULL with no default, which makes an insert without id fail.
+    const { error } = await supabase.from('scan_records').insert([{ id: generateId(), car_id: carId, scanned_at: new Date().toISOString() }])
     if (error) {
       console.error('Error recording scan:', error)
     }
@@ -1291,15 +1327,22 @@ export default function App() {
         notes: leadForm.notes.trim(),
         created_at: new Date().toISOString()
       }
-      const { error } = await supabase.from('leads').insert([newLead])
-      if (error) {
-        alert('Error saving lead: ' + error.message)
-        console.error('Supabase error:', error)
+      const result = await insertTolerant('leads', newLead)
+      if (!result.ok) {
+        alert('Error saving lead: ' + (result.error?.message || 'unknown error'))
+        console.error('Supabase error:', result.error)
       } else {
         addNotification('lead', 'Lead Saved!', `${leadForm.name} - interest recorded`)
         setShowLeadForm(false)
         setCurrentLeadCarId(null)
         setLeadForm(emptyLeadForm())
+        if (result.droppedColumns.length > 0) {
+          addNotification(
+            'lead',
+            'Some fields were not saved',
+            `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+          )
+        }
       }
     } catch (err) {
       console.error('Error saving lead:', err)
@@ -2157,14 +2200,21 @@ export default function App() {
       }))
 
       // Insert into Supabase
-      const { error } = await supabase.from('cars').insert(carsToInsert)
-      if (error) throw error
+      const result = await insertTolerant('cars', carsToInsert)
+      if (!result.ok) throw result.error
 
       // Refresh data
       await fetchData()
 
       setBulkImportStep('complete')
       addNotification('lead', 'Import Complete', `${validCars.length} cars imported successfully`)
+      if (result.droppedColumns.length > 0) {
+        addNotification(
+          'lead',
+          'Some fields were not saved',
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+        )
+      }
     } catch (err) {
       console.error('Error importing cars:', err)
       alert('Error importing cars')
@@ -4015,6 +4065,56 @@ export default function App() {
             })}
           </div>
         )}
+
+        {/* Vehicles that are not linked to any company — restored data can contain
+            rows whose company_id is null, which would otherwise be invisible. */}
+        {(() => {
+          const unassigned = cars.filter(
+            c => !c.company_id || !companies.some(co => co.id === c.company_id)
+          )
+          if (unassigned.length === 0) return null
+          return (
+            <div className="mt-6 bg-white rounded-2xl shadow-lg overflow-hidden">
+              <div className="p-4 border-b flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-lg font-bold">Unassigned Vehicles</h3>
+                  <p className="text-sm text-gray-500">
+                    {unassigned.length} vehicle{unassigned.length === 1 ? '' : 's'} without a company. Assign them to make them visible in the company lists.
+                  </p>
+                </div>
+                <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm font-semibold">
+                  {unassigned.length}
+                </span>
+              </div>
+              <div className="divide-y">
+                {unassigned.map(car => (
+                  <div key={car.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">
+                        {car.year} {car.make} {car.model}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {car.price ? car.price : 'No price'} · {getCarScanCount(car.id)} scans
+                      </p>
+                    </div>
+                    <select
+                      defaultValue=""
+                      onChange={e => {
+                        if (e.target.value) handleAssignCar(car.id, e.target.value)
+                      }}
+                      className="border rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="" disabled>Assign to company…</option>
+                      {companies.map(co => (
+                        <option key={co.id} value={co.id}>{co.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
       </main>
 
       {/* Company Modal */}
