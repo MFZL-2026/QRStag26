@@ -346,11 +346,21 @@ export default function CustomerApp() {
               if (error) console.error('Error recording scan:', error)
               else console.log('Scan recorded for car:', carId)
             })
-          // Update scan count asynchronously
+          // Update scan count asynchronously.
+          // IMPORTANT: supabase-js only sends the HTTP request when the query
+          // builder is awaited (or .then() is called). Without it the update
+          // is never executed and the counter silently stays at 0.
           supabase
             .from('cars')
-            .update({ scan_count: (carData.scan_count || 0) + 1 })
+            .update({
+              scan_count: (carData.scan_count || 0) + 1,
+              last_scanned_at: new Date().toISOString()
+            })
             .eq('id', carId)
+            .then(({ error }) => {
+              if (error) console.error('Error updating scan count:', error)
+              else console.log('Scan count updated for car:', carId)
+            })
         }
 
       } catch (err) {
