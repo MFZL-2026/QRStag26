@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Car Details</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     .spinner {
       border: 4px solid #f3f3f3;
@@ -27,11 +26,730 @@
       overflow: hidden !important;
     }
   </style>
-  <script type="module" crossorigin src="./assets/customer-standalone-D3o3ql-5.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/modulepreload-polyfill-B5Qt9EMX.js">
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="min-h-screen" id="body">
   <div id="app"></div>
 
+  <script src="/runtime-config.js"></script>
+  <script type="module">
+    // The QR library is bundled by Vite — the old unpkg URL (qrcode@1.5.3/build/
+    // qrcode.min.js) returns 404 because the package ships no browser bundle.
+    import { toCanvas } from 'qrcode';
+
+    // Supabase configuration (from runtime-config.js - editable without rebuild)
+    const SUPABASE_URL = (window.__APP_CONFIG__ && window.__APP_CONFIG__.supabaseUrl) || 'https://uifcfnkbccluhyryywxe.supabase.co';
+    const SUPABASE_KEY = (window.__APP_CONFIG__ && window.__APP_CONFIG__.supabaseAnonKey) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU';
+
+    // QR Templates - Matched with main app QR_TEMPLATES
+    const qrTemplates = [
+      { id: 'standard', name: 'Standard', fgColor: '#000000', bgColor: '#ffffff', borderColor: '#333333' },
+      { id: 'luxury', name: 'Luxury', fgColor: '#d4af37', bgColor: '#1a1a2e', borderColor: '#d4af37' },
+      { id: 'classic', name: 'Classic', fgColor: '#1a1a1a', bgColor: '#f5f5dc', borderColor: '#8b7355' },
+      { id: 'bold', name: 'Bold', fgColor: '#ffffff', bgColor: '#dc2626', borderColor: '#991b1b' },
+      { id: 'minimalist', name: 'Minimalist', fgColor: '#000000', bgColor: '#ffffff', borderColor: '#e5e7eb' },
+      { id: 'sports', name: 'Sports', fgColor: '#ffffff', bgColor: '#0f172a', borderColor: '#22c55e' },
+      { id: 'eco', name: 'Eco', fgColor: '#ffffff', bgColor: '#16a34a', borderColor: '#15803d' },
+      { id: 'ev', name: 'EV', fgColor: '#ffffff', bgColor: '#2563eb', borderColor: '#1d4ed8' },
+      { id: 'hybrid', name: 'Hybrid', fgColor: '#ffffff', bgColor: '#22c55e', borderColor: '#16a34a' },
+      { id: 'plugin_hybrid', name: 'Plug-in Hybrid', fgColor: '#ffffff', bgColor: '#06b6d4', borderColor: '#0891b2' },
+    ];
+
+    // State - Default values that match database settings
+    let state = {
+      loading: true,
+      error: null,
+      car: null,
+      company: null,
+      images: [],
+      currentImage: 0,
+      showLeadForm: false,
+      leadSaved: false,
+      appName: 'QRSTag',  // Default app name - loaded from database
+      // Base URL encoded into the QR image. Empty means "use the URL this page
+      // was opened from" — the admin can override it via app_settings.custom_qr_url.
+      customQrUrl: '',
+      saving: false,
+      leadForm: { name: '', phone: '', email: '', interest_level: 'normal', notes: '' }
+    };
+
+    // Generate unique ID
+    function generateId() {
+      return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+    }
+
+    // Get car ID from URL
+    function getCarIdFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('car');
+    }
+
+    // Get app name from localStorage
+    function loadAppName() {
+      const savedSettings = localStorage.getItem('appSettings');
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        if (settings.appName) state.appName = settings.appName;
+      }
+    }
+
+    // Fetch data from Supabase
+    async function fetchData() {
+      try {
+        const carId = getCarIdFromUrl();
+        if (!carId) {
+          state.error = 'No car ID provided';
+          state.loading = false;
+          render();
+          return;
+        }
+
+        // Fetch car data (with timeout so an unreachable backend never hangs the page)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        let carResponse;
+        try {
+          carResponse = await fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}&select=*`, {
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            },
+            signal: controller.signal
+          });
+        } catch (netErr) {
+          clearTimeout(timeout);
+          const unreachable = netErr && netErr.name === 'AbortError';
+          state.error = unreachable
+            ? 'The database did not respond in time. Please try again.'
+            : 'Cannot reach the database. Please check your internet connection.';
+          state.loading = false;
+          render();
+          return;
+        }
+        clearTimeout(timeout);
+
+        if (!carResponse.ok) {
+          state.error = 'Database error (' + carResponse.status + '). Please try again later.';
+          state.loading = false;
+          render();
+          return;
+        }
+
+        const cars = await carResponse.json();
+        console.log('Fetch response status:', carResponse.status);
+        console.log('Cars data:', cars);
+
+        if (!cars || cars.length === 0) {
+          state.error = 'Car not found. ID: ' + carId;
+          state.loading = false;
+          render();
+          return;
+        }
+
+        const carData = cars[0];
+        console.log('Car data loaded:', carData);
+        console.log('Company ID:', carData.company_id);
+
+        // Parse images
+        if (carData.images) {
+          try {
+            state.images = typeof carData.images === 'string' ? JSON.parse(carData.images) : carData.images;
+          } catch (e) {
+            state.images = [];
+          }
+        }
+
+        state.car = carData;
+        state.leadForm.car_id = carId;
+
+        // Fetch company data (note: table is 'companies' not 'company')
+        if (carData.company_id) {
+          const companyResponse = await fetch(`${SUPABASE_URL}/rest/v1/companies?id=eq.${carData.company_id}&select=*`, {
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+          });
+          const companies = await companyResponse.json();
+          if (companies && companies.length > 0) {
+            state.company = companies[0];
+          }
+        }
+
+        // Fetch app settings (including custom QR URL)
+        try {
+          const settingsResponse = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?id=eq.app_settings&select=app_name,custom_qr_url`, {
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+          });
+          const settingsData = await settingsResponse.json();
+          console.log('App settings loaded:', settingsData);
+          if (settingsData && settingsData.length > 0) {
+            if (settingsData[0].app_name) {
+              state.appName = settingsData[0].app_name;
+              console.log('App name set to:', state.appName);
+            }
+            if (settingsData[0].custom_qr_url) state.customQrUrl = settingsData[0].custom_qr_url;
+          }
+        } catch (e) {
+          console.log('Using default app settings');
+        }
+
+        // Record scan - run in background (non-blocking) for faster page load
+        const scanKey = `scanned_${carId}`;
+        if (!sessionStorage.getItem(scanKey)) {
+          sessionStorage.setItem(scanKey, 'true');
+          const newScanCount = (carData.scan_count || 0) + 1;
+          const scanId = generateId();
+          const scanTime = new Date().toISOString();
+
+          // Record scan in scan_records table
+          fetch(`${SUPABASE_URL}/rest/v1/scan_records`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal',
+              'Upsert': 'true'
+            },
+            body: JSON.stringify({
+              id: scanId,
+              car_id: carId,
+              scanned_at: scanTime
+            })
+          }).then(async res => {
+            if (res.ok || res.status === 201 || res.status === 200) {
+              console.log('✓ Scan recorded successfully:', scanId, 'for car:', carId);
+            } else {
+              const errorText = await res.text();
+              console.error('✗ Failed to record scan:', res.status, errorText);
+            }
+          }).catch(err => {
+            console.error('✗ Scan record error:', err);
+          });
+
+          // Update scan count on car record.
+          // The counter columns are optional: if this database does not have
+          // them, PostgREST rejects the whole request (PGRST204). Retry without
+          // the offending column instead of failing — the scan itself has
+          // already been recorded in scan_records.
+          const updateScanCount = async (payload) => {
+            let body = { ...payload };
+            for (let attempt = 0; attempt < 4; attempt++) {
+              const res = await fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}`, {
+                method: 'PATCH',
+                headers: {
+                  'apikey': SUPABASE_KEY,
+                  'Authorization': `Bearer ${SUPABASE_KEY}`,
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify(body)
+              });
+              if (res.ok) {
+                console.log('✓ Scan count updated to:', newScanCount);
+                return true;
+              }
+              const text = await res.text();
+              const match = text.match(/Could not find the '([^']+)' column/);
+              if (match && match[1] in body) {
+                console.warn(`⚠ Database has no "${match[1]}" column — skipping scan counter update`);
+                delete body[match[1]];
+                continue;
+              }
+              console.error('✗ Scan count update failed:', res.status, text);
+              return false;
+            }
+            return false;
+          };
+          updateScanCount({
+            scan_count: newScanCount,
+            last_scanned_at: scanTime
+          }).catch(err => {
+            console.error('✗ Scan count update error:', err);
+          });
+        }
+
+      } catch (err) {
+        console.error('Error:', err);
+        state.error = 'Failed to load car data';
+      } finally {
+        state.loading = false;
+        render();
+        if (state.car) initQRCode();
+      }
+    }
+
+    // Get template colors
+    function getTemplateColors() {
+      const templateId = state.car?.qr_template || 'standard';
+      const template = qrTemplates.find(t => t.id === templateId) || qrTemplates[0];
+      return {
+        fg: template.fgColor || '#000000',
+        bg: template.bgColor || '#ffffff',
+        border: template.borderColor || '#333333'
+      };
+    }
+
+    // QR Shape configurations
+    const qrShapes = {
+      'square': '0px',
+      'rounded_xs': '4px',
+      'rounded_sm': '8px',
+      'rounded_md': '16px',
+      'rounded_lg': '24px',
+      'rounded_xl': '32px',
+      'pill': '64px',
+      'circle': '50%',
+      'circle_md': '40%',
+      'octagon': '10px',
+      'hexagon': '12px',
+      'diamond': '4px'
+    };
+
+    // Get QR shape border radius
+    function getQRShapeRadius() {
+      const shapeId = state.car?.qr_shape || 'square';
+      return qrShapes[shapeId] || '0px';
+    }
+
+    // Check if shape has enhanced scannability (higher error correction needed)
+    function hasEnhancedScannability() {
+      const shapeId = state.car?.qr_shape || 'square';
+      return ['circle', 'pill', 'rounded_xl'].includes(shapeId);
+    }
+
+    // Check if QR is active
+    function isQRActive() {
+      if (!state.car) return false;
+      if (state.car.is_active === false) return false;
+      const now = new Date();
+      const start = state.car.scan_start_date ? new Date(state.car.scan_start_date) : null;
+      const end = state.car.scan_end_date ? new Date(state.car.scan_end_date) : null;
+      if (start && now < start) return false;
+      if (end && now > end) return false;
+      return true;
+    }
+
+    // Get QR timeframe status
+    function getQRTimeframeStatus() {
+      if (!state.car) return '';
+      const now = new Date();
+      const start = state.car.scan_start_date ? new Date(state.car.scan_start_date) : null;
+      const end = state.car.scan_end_date ? new Date(state.car.scan_end_date) : null;
+      if (!start && !end) return 'Active';
+      if (start && now < start) return `Starts ${state.car.scan_start_date}`;
+      if (end && now > end) return 'Expired';
+      return 'Active';
+    }
+
+    // Initialize QR Code
+    function initQRCode() {
+      const qrContainer = document.getElementById('qr-code');
+      if (!qrContainer || !state.car) return;
+
+      const colors = getTemplateColors();
+      const shapeRadius = getQRShapeRadius();
+      const isEnhancedScannable = hasEnhancedScannability();
+
+      // Use custom QR URL if set, otherwise use current page URL
+      let baseUrl;
+      if (state.customQrUrl) {
+        // Ensure custom URL ends with /
+        baseUrl = state.customQrUrl.endsWith('/') ? state.customQrUrl : state.customQrUrl + '/';
+      } else {
+        baseUrl = window.location.origin + window.location.pathname.replace('index.html', '').replace('customer-standalone.html', '');
+      }
+      const qrUrl = `${baseUrl}customer-standalone.html?car=${state.car.id}`;
+
+      qrContainer.innerHTML = '';
+
+      // QRCode options with error correction level
+      // Higher error correction for shapes with cut-off corners (circle, pill, etc.)
+      const errorCorrectionLevel = isEnhancedScannable ? 'M' : 'L';
+
+      toCanvas(qrUrl, {
+        width: 200,
+        margin: 2,
+        errorCorrectionLevel: errorCorrectionLevel,
+        color: {
+          dark: colors.fg,
+          light: colors.bg
+        }
+      }, (error, canvas) => {
+        if (error) console.error(error);
+        else {
+          // Apply shape border radius
+          canvas.style.borderRadius = shapeRadius;
+          canvas.style.overflow = 'hidden';
+          qrContainer.appendChild(canvas);
+
+          // Apply border styling
+          qrContainer.style.border = `2px solid ${colors.border}`;
+          qrContainer.style.borderRadius = shapeRadius;
+          qrContainer.style.padding = '8px';
+          qrContainer.style.backgroundColor = colors.bg;
+          qrContainer.style.display = 'inline-block';
+        }
+      });
+    }
+
+    // Save lead
+    async function saveLead() {
+      if (!state.leadForm.name.trim()) {
+        alert('Please enter your name');
+        return;
+      }
+
+      state.saving = true;
+      render();
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/leads`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            id: generateId(),
+            car_id: state.car.id,
+            name: state.leadForm.name,
+            phone: state.leadForm.phone || null,
+            email: state.leadForm.email || null,
+            interest_level: state.leadForm.interest_level,
+            notes: state.leadForm.notes || null
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || 'Failed to save');
+        }
+
+        state.leadSaved = true;
+        setTimeout(() => {
+          state.showLeadForm = false;
+          state.leadSaved = false;
+          state.leadForm = { name: '', phone: '', email: '', interest_level: 'normal', notes: '' };
+          render();
+        }, 3000);
+      } catch (err) {
+        console.error('Error saving lead:', err);
+        alert('Failed to submit. Please try again.');
+      } finally {
+        state.saving = false;
+        render();
+      }
+    }
+
+    // Render app
+    function render() {
+      const app = document.getElementById('app');
+      const colors = getTemplateColors();
+      const isActive = isQRActive();
+
+      // Keep page background standard
+      document.body.style.background = '#f3f4f6';
+
+      if (state.loading) {
+        app.innerHTML = `
+          <div class="min-h-screen flex items-center justify-center bg-gray-100">
+            <div class="text-center bg-white rounded-2xl shadow-lg p-12">
+              <div class="spinner mx-auto mb-4"></div>
+              <p class="text-gray-600">Loading car details...</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (state.error || !state.car) {
+        app.innerHTML = `
+          <div class="min-h-screen flex items-center justify-center p-4 bg-gray-100">
+            <div class="bg-white rounded-2xl shadow-lg p-8 text-center max-w-md">
+              <div class="text-6xl mb-4">🔍</div>
+              <h2 class="text-2xl font-bold text-gray-800 mb-2">Car Not Found</h2>
+              <p class="text-gray-600">${state.error || 'This QR code is invalid or has been removed.'}</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const car = state.car;
+      const company = state.company;
+
+      app.innerHTML = `
+        <!-- Header -->
+        ${company ? `
+          <div class="bg-white shadow-sm border-b border-gray-200">
+            <div class="max-w-2xl mx-auto px-4 py-4 flex items-center justify-center gap-3">
+              ${company.branding_logo && car.logo_position === 'top' ? `<img src="${company.branding_logo}" alt="Logo" class="w-10 h-10 object-contain">` : ''}
+              <h1 class="text-lg font-semibold text-gray-800">${company.name}</h1>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="max-w-2xl mx-auto p-4">
+          <!-- QR Not Active Warning -->
+          ${!isActive ? `
+            <div class="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6 text-center">
+              <div class="text-5xl mb-3">⚠️</div>
+              <h2 class="text-xl font-bold text-red-600 mb-2">QR Code Not Active</h2>
+              <p class="text-gray-600">Status: ${getQRTimeframeStatus()}</p>
+            </div>
+          ` : ''}
+
+          <!-- Car Details Card -->
+          <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <!-- Image Gallery -->
+            ${state.images.length > 0 ? `
+              <div class="mb-6">
+                <div class="relative rounded-xl overflow-hidden mb-2 bg-gray-100">
+                  <img src="${state.images[state.currentImage]}" alt="${car.make} ${car.model}" class="w-full h-64 object-cover">
+                  ${state.images.length > 1 ? `
+                    <button onclick="prevImage()" class="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70">◀</button>
+                    <button onclick="nextImage()" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70">▶</button>
+                  ` : ''}
+                </div>
+                <div class="flex gap-2 overflow-x-auto pb-2">
+                  ${state.images.map((img, idx) => `
+                    <img src="${img}" alt="Thumbnail ${idx + 1}" onclick="setImage(${idx})" class="w-16 h-16 object-cover rounded-lg cursor-pointer ${state.currentImage === idx ? 'ring-2 ring-blue-500' : 'opacity-70'} flex-shrink-0">
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Car Title and Price -->
+            <div class="text-center mb-6">
+              <h1 class="text-2xl font-bold text-gray-900 mb-2">${car.year} ${car.make} ${car.model}</h1>
+              ${car.price ? `<p class="text-3xl font-bold text-blue-600">${car.price}</p>` : ''}
+            </div>
+
+            <!-- Car Specs Grid -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+              ${car.mileage ? `<div class="bg-gray-50 rounded-xl p-4"><p class="text-gray-500 text-sm mb-1">Mileage</p><p class="font-semibold">${car.mileage}</p></div>` : ''}
+              ${car.color ? `<div class="bg-gray-50 rounded-xl p-4"><p class="text-gray-500 text-sm mb-1">Color</p><p class="font-semibold">${car.color}</p></div>` : ''}
+              ${car.fuelType ? `<div class="bg-gray-50 rounded-xl p-4"><p class="text-gray-500 text-sm mb-1">Fuel Type</p><p class="font-semibold">${car.fuelType}</p></div>` : ''}
+              ${car.transmission ? `<div class="bg-gray-50 rounded-xl p-4"><p class="text-gray-500 text-sm mb-1">Transmission</p><p class="font-semibold">${car.transmission}</p></div>` : ''}
+            </div>
+
+            <!-- Description -->
+            ${car.description ? `
+              <div class="mb-6">
+                <h3 class="font-semibold text-gray-800 mb-2">Description</h3>
+                <p class="text-gray-600 leading-relaxed">${car.description}</p>
+              </div>
+            ` : ''}
+
+            <!-- Vehicle Regulatory Information -->
+            ${(car.ccr_no || car.vin || car.approved_on || car.produced_in_and_after || car.country_of_production || car.pollutant_limits || car.label_no || car.manufacturer || car.motor_vehicle_class || car.fe_cafe_combined) ? `
+              <div class="mb-6 bg-blue-50 rounded-xl p-4">
+                <h3 class="font-semibold text-blue-800 mb-3">Vehicle Regulatory Information</h3>
+                <div class="grid grid-cols-2 gap-3">
+                  ${car.ccr_no ? `<div><p class="text-xs text-blue-500 mb-1">CCR No</p><p class="font-medium text-sm">${car.ccr_no}</p></div>` : ''}
+                  ${car.approved_on ? `<div><p class="text-xs text-blue-500 mb-1">Approved On</p><p class="font-medium text-sm">${car.approved_on}</p></div>` : ''}
+                  ${car.produced_in_and_after ? `<div><p class="text-xs text-blue-500 mb-1">Produced In & After</p><p class="font-medium text-sm">${car.produced_in_and_after}</p></div>` : ''}
+                  ${car.country_of_production ? `<div><p class="text-xs text-blue-500 mb-1">Country of Production</p><p class="font-medium text-sm">${car.country_of_production}</p></div>` : ''}
+                  ${car.pollutant_limits ? `<div><p class="text-xs text-blue-500 mb-1">Pollutant Limits</p><p class="font-medium text-sm">${car.pollutant_limits}</p></div>` : ''}
+                  ${car.vin ? `<div><p class="text-xs text-blue-500 mb-1">VIN</p><p class="font-medium text-sm">${car.vin}</p></div>` : ''}
+                  ${car.label_no ? `<div><p class="text-xs text-blue-500 mb-1">Label No</p><p class="font-medium text-sm">${car.label_no}</p></div>` : ''}
+                  ${car.manufacturer ? `<div><p class="text-xs text-blue-500 mb-1">Manufacturer</p><p class="font-medium text-sm">${car.manufacturer}</p></div>` : ''}
+                  ${car.motor_vehicle_class ? `<div><p class="text-xs text-blue-500 mb-1">Motor Vehicle Class</p><p class="font-medium text-sm">${car.motor_vehicle_class}</p></div>` : ''}
+                  ${car.fe_cafe_combined ? `<div><p class="text-xs text-blue-500 mb-1">FE (CAFE) Combined</p><p class="font-medium text-sm">${car.fe_cafe_combined}</p></div>` : ''}
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Contact Buttons -->
+            <div class="grid grid-cols-3 gap-3 mb-4">
+              ${car.contactPhone ? `<a href="tel:${car.contactPhone}" class="flex flex-col items-center gap-1 p-3 bg-blue-50 hover:bg-blue-100 rounded-xl transition"><span class="text-blue-600 text-xl">📞</span><span class="font-medium text-blue-700 text-sm">Call</span></a>` : ''}
+              ${car.contact_whatsapp ? `<a href="https://wa.me/${car.contact_whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi, I'm interested in your ${car.year} ${car.make} ${car.model}`)}" target="_blank" rel="noopener noreferrer" class="flex flex-col items-center gap-1 p-3 bg-green-50 hover:bg-green-100 rounded-xl transition"><span class="text-green-600 text-xl">💬</span><span class="font-medium text-green-700 text-sm">WhatsApp</span></a>` : ''}
+              ${car.contactEmail ? `<a href="mailto:${car.contactEmail}?subject=Inquiry about ${car.year} ${car.make} ${car.model}" class="flex flex-col items-center gap-1 p-3 bg-gray-50 hover:bg-gray-100 rounded-xl transition"><span class="text-gray-600 text-xl">✉️</span><span class="font-medium text-gray-700 text-sm">Email</span></a>` : ''}
+            </div>
+
+            <!-- Interested Button -->
+            <button onclick="${isActive ? 'toggleLeadForm()' : ''}" class="w-full py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition ${isActive ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:opacity-90' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}">
+              <span class="text-xl">✨</span> I'm Interested - Contact Me
+            </button>
+          </div>
+
+          <!-- QR Code Card - WITH TEMPLATE COLORS (branding + the actual QR image) -->
+          <div class="rounded-2xl shadow-lg p-6 mb-6" style="background: ${colors.bg}; border: 4px solid ${colors.border}">
+            <div class="text-center">
+              ${company?.branding_logo ? `
+                <img src="${company.branding_logo}" alt="Company Logo" class="w-32 h-32 object-contain mx-auto mb-4">
+              ` : ''}
+              <h2 class="text-2xl font-bold" style="color: ${colors.fg}">${company?.name || 'Dealership'}</h2>
+
+              <!-- The QR image itself. initQRCode() fills this container with a
+                   canvas; without this element the QR was never rendered. -->
+              ${isActive ? `
+                <div class="mt-4 flex justify-center">
+                  <div id="qr-code"></div>
+                </div>
+                <p class="text-xs mt-2" style="color: ${colors.fg}; opacity: 0.7">Scan to view full vehicle details</p>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Footer -->
+          ${car.company_name_position === 'bottom' && company ? `
+            <div class="flex items-center justify-center gap-3 bg-white rounded-2xl shadow-lg p-6 mb-6">
+              ${company.branding_logo && car.logo_position === 'bottom' ? `<img src="${company.branding_logo}" alt="Logo" class="w-12 h-12 object-contain">` : ''}
+              <p class="text-lg font-semibold text-gray-700">${company.name}</p>
+            </div>
+          ` : ''}
+
+          <!-- Powered by footer -->
+          <footer class="text-center py-6 text-gray-500 text-sm">
+            <p>Powered by QRSTag</p>
+          </footer>
+        </div>
+
+        <!-- Lead Form Modal -->
+        ${state.showLeadForm ? `
+          <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+              ${state.leadSaved ? `
+                <div class="text-center py-8">
+                  <div class="text-6xl mb-4">✅</div>
+                  <h3 class="text-xl font-bold text-green-600 mb-2">Thank You!</h3>
+                  <p class="text-gray-600">We'll contact you soon.</p>
+                </div>
+              ` : `
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="text-xl font-bold">I'm Interested</h2>
+                  <button onclick="toggleLeadForm()" class="p-2 hover:bg-gray-100 rounded-full text-2xl">×</button>
+                </div>
+                <div class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Your Name *</label>
+                    <input type="text" value="${state.leadForm.name}" onchange="updateLeadForm('name', this.value)" class="w-full p-3 border rounded-lg" placeholder="John Doe">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Phone</label>
+                    <input type="tel" value="${state.leadForm.phone}" onchange="updateLeadForm('phone', this.value)" class="w-full p-3 border rounded-lg" placeholder="+1 555-123-4567">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Email</label>
+                    <input type="email" value="${state.leadForm.email}" onchange="updateLeadForm('email', this.value)" class="w-full p-3 border rounded-lg" placeholder="john@example.com">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Interest Level</label>
+                    <div class="flex gap-2">
+                      <button onclick="setInterestLevel('urgent')" class="flex-1 py-3 rounded-lg capitalize font-medium ${state.leadForm.interest_level === 'urgent' ? 'bg-red-500 text-white' : 'bg-gray-100'}">Urgent</button>
+                      <button onclick="setInterestLevel('normal')" class="flex-1 py-3 rounded-lg capitalize font-medium ${state.leadForm.interest_level === 'normal' ? 'bg-blue-500 text-white' : 'bg-gray-100'}">Normal</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Notes</label>
+                    <textarea onchange="updateLeadForm('notes', this.value)" class="w-full p-3 border rounded-lg h-20 resize-none" placeholder="Any questions or notes...">${state.leadForm.notes}</textarea>
+                  </div>
+                  <button onclick="saveLead()" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition">
+                    ${state.saving ? '<div class="spinner-small"></div> Submitting...' : '✨ Submit Interest'}
+                  </button>
+                </div>
+              `}
+            </div>
+          </div>
+        ` : ''}
+      `;
+    }
+
+    // Global functions
+    window.toggleLeadForm = () => {
+      state.showLeadForm = !state.showLeadForm;
+      render();
+    };
+
+    window.updateLeadForm = (field, value) => {
+      state.leadForm[field] = value;
+    };
+
+    window.setInterestLevel = (level) => {
+      state.leadForm.interest_level = level;
+      render();
+    };
+
+    window.setImage = (idx) => {
+      state.currentImage = idx;
+      render();
+    };
+
+    window.prevImage = () => {
+      state.currentImage = state.currentImage === 0 ? state.images.length - 1 : state.currentImage - 1;
+      render();
+    };
+
+    window.nextImage = () => {
+      state.currentImage = state.currentImage === state.images.length - 1 ? 0 : state.currentImage + 1;
+      render();
+    };
+
+    window.saveLead = saveLead;
+
+    // Hide the platform footer/badge injected by the hosting provider.
+    //
+    // This MUST stay cheap and idempotent: an earlier version re-applied inline
+    // styles on every animation frame and also from a MutationObserver that
+    // watched attributes — the two kept mutating the DOM for each other and the
+    // page pegged the CPU at 100% and never became interactive.
+    const HIDDEN_STYLE = 'display: none !important; visibility: hidden !important; height: 0 !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important;';
+
+    function hideElement(el, style) {
+      if (!el || el.id === 'app') return;
+      if (el.getAttribute('data-platform-hidden') === style) return;
+      el.setAttribute('data-platform-hidden', style);
+      el.style.cssText = style;
+    }
+
+    function hideAllPlatformFooters() {
+      // 1. Hide last child of body (common platform footer position)
+      const lastChild = document.body.lastElementChild;
+      if (lastChild && lastChild.id !== 'app' && lastChild.tagName !== 'SCRIPT') {
+        hideElement(lastChild, HIDDEN_STYLE);
+      }
+
+      // 2. Hide any element carrying the platform's signature text
+      document.querySelectorAll('*').forEach(el => {
+        if (el.id === 'app' || el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
+        const text = el.textContent || '';
+        if (text.includes('MiniMax') || text.includes('mcode') || text.includes('Created by')) {
+          hideElement(el, 'display: none !important; visibility: hidden !important;');
+        }
+      });
+    }
+
+    // Run immediately, then a few times while the provider injects its badge
+    hideAllPlatformFooters();
+    [50, 100, 200, 500, 1000, 2000].forEach(delay => {
+      setTimeout(hideAllPlatformFooters, delay);
+    });
+
+    // Watch for the provider adding its badge later on. Only childList changes
+    // are observed — watching attributes would re-enter this callback on every
+    // style change and freeze the page.
+    if (typeof MutationObserver !== 'undefined') {
+      let scheduled = false;
+      const observer = new MutationObserver(() => {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => {
+          scheduled = false;
+          hideAllPlatformFooters();
+        });
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    // Initialize
+    loadAppName();
+    fetchData();
+  </script>
 </body>
 </html>

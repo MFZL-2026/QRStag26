@@ -4,9 +4,29 @@ import html2canvas from 'html2canvas'
 import { createClient } from '@supabase/supabase-js'
 import { Phone, Mail, Sparkles, X, ChevronLeft, ChevronRight, Download, AlertCircle, MessageCircle, Video, Printer } from 'lucide-react'
 
-// Supabase client
-const supabaseUrl = 'https://uifcfnkbccluhyryywxe.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU'
+// Print size options (in mm converted to pixels at 72 DPI)
+const PRINT_SIZES = [
+  { id: 'a6', name: 'A6', width: 298, height: 420, desc: '105×148mm' },
+  { id: 'a5', name: 'A5', width: 420, height: 595, desc: '148×210mm' },
+  { id: 'a4', name: 'A4', width: 595, height: 842, desc: '210×297mm' },
+  { id: 'a3', name: 'A3', width: 842, height: 1191, desc: '297×420mm' },
+]
+
+// Supabase client - configuration comes from /runtime-config.js (editable without rebuild)
+declare global {
+  interface Window {
+    __APP_CONFIG__?: {
+      supabaseUrl?: string
+      supabaseAnonKey?: string
+    }
+  }
+}
+
+const FALLBACK_SUPABASE_URL = 'https://uifcfnkbccluhyryywxe.supabase.co'
+const FALLBACK_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU'
+
+const supabaseUrl = (typeof window !== 'undefined' && window.__APP_CONFIG__?.supabaseUrl) || FALLBACK_SUPABASE_URL
+const supabaseAnonKey = (typeof window !== 'undefined' && window.__APP_CONFIG__?.supabaseAnonKey) || FALLBACK_SUPABASE_ANON_KEY
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -45,6 +65,17 @@ interface Car {
   scan_start_date: string
   scan_end_date: string
   scan_count: number
+  // Vehicle Regulatory Information
+  ccr_no?: string
+  approved_on?: string
+  produced_in_and_after?: string
+  country_of_production?: string
+  pollutant_limits?: string
+  vin?: string
+  label_no?: string
+  manufacturer?: string
+  motor_vehicle_class?: string
+  fe_cafe_combined?: string
 }
 
 interface Company {
@@ -69,15 +100,18 @@ interface AppSettings {
   appLogo: string
 }
 
-// QR Templates
+// QR Templates - Matched with main app QR_TEMPLATES
 const qrTemplates = [
-  { id: 'default', name: 'Classic', fgColor: '#000000', bgColor: '#ffffff' },
-  { id: 'gradient-blue', name: 'Gradient Blue', gradient: ['#667eea', '#764ba2'] },
-  { id: 'gradient-green', name: 'Nature Green', gradient: ['#11998e', '#38ef7d'] },
-  { id: 'warm-orange', name: 'Warm Orange', gradient: ['#f12711', '#f5af19'] },
-  { id: 'elegant-dark', name: 'Elegant Dark', fgColor: '#ffffff', bgColor: '#1a1a2e' },
-  { id: 'sunset-pink', name: 'Sunset Pink', gradient: ['#ee0979', '#ff6a00'] },
-  { id: 'ocean-blue', name: 'Ocean Blue', gradient: ['#1e3c72', '#2a5298'] },
+  { id: 'standard', name: 'Standard', fgColor: '#000000', bgColor: '#ffffff' },
+  { id: 'luxury', name: 'Luxury', fgColor: '#d4af37', bgColor: '#1a1a2e' },
+  { id: 'classic', name: 'Classic', fgColor: '#1a1a1a', bgColor: '#f5f5dc' },
+  { id: 'bold', name: 'Bold', fgColor: '#ffffff', bgColor: '#dc2626' },
+  { id: 'minimalist', name: 'Minimalist', fgColor: '#000000', bgColor: '#ffffff' },
+  { id: 'sports', name: 'Sports', fgColor: '#ffffff', bgColor: '#0f172a' },
+  { id: 'eco', name: 'Eco', fgColor: '#ffffff', bgColor: '#16a34a' },
+  { id: 'ev', name: 'EV', fgColor: '#ffffff', bgColor: '#2563eb' },
+  { id: 'hybrid', name: 'Hybrid', fgColor: '#ffffff', bgColor: '#22c55e' },
+  { id: 'plugin_hybrid', name: 'Plug-in Hybrid', fgColor: '#ffffff', bgColor: '#06b6d4' },
 ]
 
 // QR Frames - decorative frame styles
@@ -139,6 +173,7 @@ export default function CustomerApp() {
   const [qrBaseUrl, setQrBaseUrl] = useState('')
   const qrRef = useRef<HTMLDivElement>(null)
   const [saving, setSaving] = useState(false)
+  const [printSize, setPrintSize] = useState('a5')
 
   const [leadForm, setLeadForm] = useState<Lead>({
     car_id: '',
@@ -213,7 +248,15 @@ export default function CustomerApp() {
           .single()
 
         if (carError || !carData) {
-          setError('Car not found')
+          // Distinguish "backend unreachable" from "record genuinely missing"
+          const msg = String(carError?.message || '')
+          if (/fetch|network|dns|failed to fetch|load failed|timeout/i.test(msg)) {
+            setError('Cannot reach the database. Please check your connection and try again.')
+          } else if (carError && !/0 rows|PGRST116/i.test(msg)) {
+            setError('Database error: ' + msg)
+          } else {
+            setError('Car not found')
+          }
           return
         }
 
@@ -256,7 +299,18 @@ export default function CustomerApp() {
           is_active: carData.is_active ?? true,
           scan_start_date: carData.scan_start_date || '',
           scan_end_date: carData.scan_end_date || '',
-          scan_count: carData.scan_count || 0
+          scan_count: carData.scan_count || 0,
+          // Vehicle Regulatory Information
+          ccr_no: carData.ccr_no || '',
+          approved_on: carData.approved_on || '',
+          produced_in_and_after: carData.produced_in_and_after || '',
+          country_of_production: carData.country_of_production || '',
+          pollutant_limits: carData.pollutant_limits || '',
+          vin: carData.vin || '',
+          label_no: carData.label_no || '',
+          manufacturer: carData.manufacturer || '',
+          motor_vehicle_class: carData.motor_vehicle_class || '',
+          fe_cafe_combined: carData.fe_cafe_combined || ''
         }
 
         setCar(car)
@@ -266,7 +320,7 @@ export default function CustomerApp() {
         // Fetch company data
         if (carData.company_id) {
           const { data: companyData } = await supabase
-            .from('company')
+            .from('companies')
             .select('*')
             .eq('id', carData.company_id)
             .single()
@@ -368,17 +422,19 @@ export default function CustomerApp() {
 
   // Get current template
   const getCurrentTemplate = () => {
-    const templateId = car?.qr_template || 'default'
+    const templateId = car?.qr_template || 'standard'
     return qrTemplates.find(t => t.id === templateId) || qrTemplates[0]
   }
 
-  // Get template colors for QR code
+  // Get template colors for branding
   const getTemplateColors = () => {
     const template = qrTemplates.find(t => t.id === car?.qr_template) || qrTemplates[0]
-    if (template.gradient) {
-      return { fg: template.gradient[0], bg: '#ffffff' }
+    const templateAny = template as { fgColor?: string; bgColor?: string; borderColor?: string }
+    return {
+      fg: templateAny.fgColor || '#000000',
+      bg: templateAny.bgColor || '#ffffff',
+      border: templateAny.borderColor || templateAny.fgColor || '#000000'
     }
-    return { fg: template.fgColor || '#000000', bg: template.bgColor || '#ffffff' }
   }
 
   // Use html2canvas to capture the actual DOM element with all CSS effects
@@ -419,7 +475,7 @@ export default function CustomerApp() {
     }
   }
 
-  // Print QR with Frame and Shape
+  // Print QR with Frame and Shape and selected size
   const printQR = async () => {
     if (!car) return
     try {
@@ -428,6 +484,9 @@ export default function CustomerApp() {
         alert('Error generating QR code for print')
         return
       }
+
+      // Get selected print size
+      const sizeConfig = PRINT_SIZES.find(s => s.id === printSize) || PRINT_SIZES[1] // Default to A5
 
       // Open print window with QR image
       const printWindow = window.open('', '_blank')
@@ -441,9 +500,10 @@ export default function CustomerApp() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Print QR Code</title>
+          <title>Print QR Code - ${sizeConfig.name}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
+            @page { size: ${sizeConfig.name.toLowerCase()}; margin: 0; }
             body {
               display: flex;
               justify-content: center;
@@ -453,16 +513,22 @@ export default function CustomerApp() {
             }
             .qr-container {
               text-align: center;
-              padding: 20px;
+              padding: 30px;
             }
             .qr-image {
-              max-width: 300px;
+              width: ${sizeConfig.width * 0.7}px;
               height: auto;
+              max-width: 100%;
             }
             .car-info {
-              margin-top: 15px;
-              font-size: 16px;
+              margin-top: 20px;
+              font-size: ${sizeConfig.width > 500 ? '24px' : '16px'};
               color: #333;
+            }
+            .size-label {
+              font-size: ${sizeConfig.width > 500 ? '14px' : '10px'};
+              color: #666;
+              margin-top: 8px;
             }
             @media print {
               body { margin: 0; }
@@ -475,8 +541,9 @@ export default function CustomerApp() {
             <img src="${imgDataUrl}" class="qr-image" alt="QR Code" />
             <div class="car-info">
               <strong>${car?.year} ${car?.make} ${car?.model}</strong>
-              ${car?.price ? `<br/><span style="color: #2563eb; font-size: 20px;">${car.price}</span>` : ''}
+              ${car?.price ? `<br/><span style="color: #2563eb; font-size: ${sizeConfig.width > 500 ? '28px' : '20px'};">${car.price}</span>` : ''}
             </div>
+            <div class="size-label">Print Size: ${sizeConfig.name} (${sizeConfig.desc})</div>
           </div>
           <script>
             window.onload = function() {
@@ -549,30 +616,33 @@ export default function CustomerApp() {
   const isActive = isQRActive()
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
+    <div className="min-h-screen" style={{ background: templateColors.bg }}>
+      {/* Header - Company Branding with Template Colors */}
       {company && (
-        <div className="bg-white shadow-sm">
+        <div className="shadow-sm" style={{ background: templateColors.bg }}>
           <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-center gap-3">
-            {company.branding_logo && car.logo_position === 'top' && (
+            {/* Always show logo if available */}
+            {company.branding_logo && (
               <img src={company.branding_logo} alt="Logo" className="w-10 h-10 object-contain" />
             )}
-            <h1 className="text-lg font-semibold text-gray-800">{company.name}</h1>
+            <h1 className="text-lg font-semibold" style={{ color: templateColors.fg }}>{company.name}</h1>
           </div>
         </div>
       )}
 
       <div className="max-w-2xl mx-auto p-4">
-        {/* QR Not Active Warning */}
+        {/* QR Not Active - Show Expired Message Only, Hide Car Info */}
         {!isActive && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6 text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-            <h2 className="text-xl font-bold text-red-600 mb-2">QR Code Not Active</h2>
-            <p className="text-gray-600">Status: {getQRTimeframeStatus()}</p>
+          <div className="bg-gray-100 rounded-2xl shadow-lg p-8 text-center">
+            <div className="text-6xl mb-4">⏰</div>
+            <h2 className="text-2xl font-bold text-gray-700 mb-2">QR Code Expired</h2>
+            <p className="text-gray-500 mb-4">This QR code is no longer active.</p>
+            <p className="text-gray-400 text-sm">Status: {getQRTimeframeStatus()}</p>
           </div>
         )}
 
-        {/* Car Details Card */}
+        {/* Only Show Car Details When QR is Active */}
+        {isActive && (
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
           {/* Image Gallery */}
           {images.length > 0 && (
@@ -668,6 +738,75 @@ export default function CustomerApp() {
             </div>
           )}
 
+          {/* Vehicle Regulatory Information */}
+          {(car.ccr_no || car.approved_on || car.produced_in_and_after || car.country_of_production || car.pollutant_limits || car.vin || car.label_no || car.manufacturer || car.motor_vehicle_class || car.fe_cafe_combined) && (
+            <div className="mb-6 bg-blue-50 rounded-xl p-4">
+              <h3 className="font-semibold text-blue-800 mb-3">Vehicle Regulatory Information</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {car.vin && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">VIN</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.vin}</p>
+                  </div>
+                )}
+                {car.ccr_no && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">CCR No.</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.ccr_no}</p>
+                  </div>
+                )}
+                {car.label_no && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Label No.</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.label_no}</p>
+                  </div>
+                )}
+                {car.manufacturer && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Manufacturer</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.manufacturer}</p>
+                  </div>
+                )}
+                {car.motor_vehicle_class && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Motor Vehicle Class</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.motor_vehicle_class}</p>
+                  </div>
+                )}
+                {car.country_of_production && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Country of Production</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.country_of_production}</p>
+                  </div>
+                )}
+                {car.produced_in_and_after && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Produced In & After</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.produced_in_and_after}</p>
+                  </div>
+                )}
+                {car.pollutant_limits && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Pollutant Limits</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.pollutant_limits}</p>
+                  </div>
+                )}
+                {car.fe_cafe_combined && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">FE (CAFE) Combined</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.fe_cafe_combined}</p>
+                  </div>
+                )}
+                {car.approved_on && (
+                  <div>
+                    <p className="text-xs text-blue-600 mb-1">Approved On</p>
+                    <p className="font-medium text-blue-900 text-sm">{car.approved_on}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Contact Buttons */}
           <div className="grid grid-cols-3 gap-3 mb-4">
             {car.contactPhone && (
@@ -742,71 +881,31 @@ export default function CustomerApp() {
             I'm Interested - Contact Me
           </button>
         </div>
+        )}
 
-        {/* QR Code Card (for printing/saving) */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6" style={{ background: templateColors.bg }}>
+        {/* Branding Card - With Template Colors (No QR Code, No Save/Print) */}
+        <div className="rounded-2xl shadow-lg p-6 mb-6" style={{ background: templateColors.bg, border: `4px solid ${templateColors.fg}` }}>
           <div className="text-center">
-            {/* Logo at center */}
-            {car.logo_position === 'center' && company?.branding_logo && (
+            {/* Company Logo */}
+            {company?.branding_logo && (
               <div className="mb-4">
-                <img src={company.branding_logo} alt="Logo" className="w-20 h-20 object-contain mx-auto" />
+                <img src={company.branding_logo} alt="Company Logo" className="w-32 h-32 object-contain mx-auto" />
               </div>
             )}
-
-            {/* QR Code - with Frame and Shape */}
-            <div
-              ref={qrRef}
-              className="inline-block shadow-lg"
-              style={{
-                ...(car.qr_frame ? QR_FRAMES.find(f => f.id === car.qr_frame)?.style : { background: '#ffffff', padding: '12px' }),
-                borderRadius: QR_SHAPES.find(s => s.id === car.qr_shape)?.borderRadius || '8px',
-              }}
-            >
-              <div style={{
-                background: '#ffffff',
-                padding: '12px',
-                borderRadius: QR_SHAPES.find(s => s.id === car.qr_shape)?.borderRadius || '8px',
-                overflow: 'hidden'
-              }}>
-                <QRCodeSVG
-                  value={qrUrl}
-                  size={200}
-                  level="H"
-                  fgColor={templateColors.fg}
-                  bgColor="#ffffff"
-                />
-              </div>
-            </div>
-
-            {/* Save and Print QR buttons */}
-            <div className="flex justify-center gap-3 mt-4">
-              <button onClick={downloadQR} className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition">
-                <Download className="w-4 h-4" /> Save QR
-              </button>
-              <button onClick={printQR} className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-medium transition">
-                <Printer className="w-4 h-4" /> Print QR
-              </button>
-            </div>
-
-            {/* Car title under QR */}
-            <h2 className="text-xl font-bold mt-4" style={{ color: templateColors.fg }}>
-              {car.year} {car.make} {car.model}
+            {/* Company Name with Template Color */}
+            <h2 className="text-2xl font-bold" style={{ color: templateColors.fg }}>
+              {company?.name || 'Dealership'}
             </h2>
-            {car.price && (
-              <p className="text-2xl font-bold mt-2" style={{ color: templateColors.fg === '#ffffff' ? '#ffd700' : '#2563eb' }}>
-                {car.price}
-              </p>
-            )}
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer - Company Branding with Template Colors */}
         {car.company_name_position === 'bottom' && company && (
-          <div className="flex items-center justify-center gap-3 bg-white rounded-2xl shadow-lg p-6 mb-6">
+          <div className="flex items-center justify-center gap-3 rounded-2xl shadow-lg p-6 mb-6" style={{ background: templateColors.bg }}>
             {company.branding_logo && car.logo_position === 'bottom' && (
               <img src={company.branding_logo} alt="Logo" className="w-12 h-12 object-contain" />
             )}
-            <p className="text-lg font-semibold text-gray-700">{company.name}</p>
+            <p className="text-lg font-semibold" style={{ color: templateColors.fg }}>{company.name}</p>
           </div>
         )}
 

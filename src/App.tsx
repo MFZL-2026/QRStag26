@@ -1,8 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { Car, Phone, Mail, Plus, Trash2, Edit3, LogOut, Eye, X, Save, Loader2, Building2, ChevronDown, ChevronUp, Image, FileText, ArrowLeft, Printer, Hexagon, Sparkles, Users, TrendingUp, Download, Upload, Search, Bell, Globe, Zap, Star, Crown, Database, Settings, Link2, ChevronRight, Filter, Calendar, DollarSign, PieChart as LucidePieChart, Activity, ArrowUpRight, ArrowDownRight, MessageCircle, UserPlus, Shield, Key, Smartphone } from 'lucide-react'
-import { supabase } from './lib/supabase'
+import { toCanvas } from 'qrcode'
+import html2canvas from 'html2canvas'
+import imageCompression from 'browser-image-compression'
+import { Car, Phone, Mail, Plus, Trash2, Edit3, LogOut, Eye, X, Save, Loader2, Building2, ChevronDown, ChevronUp, Image, FileText, ArrowLeft, Printer, Hexagon, Sparkles, Users, TrendingUp, Download, Upload, Search, Bell, Globe, Zap, Star, Crown, Database, Settings, Link2, ChevronRight, Filter, Calendar, DollarSign, PieChart as LucidePieChart, Activity, ArrowUpRight, ArrowDownRight, MessageCircle, UserPlus, Shield, Key, Smartphone, Maximize2, ExternalLink } from 'lucide-react'
+import { supabase, upsertTolerant, insertTolerant } from './lib/supabase'
 import * as Recharts from 'recharts'
+
+// Print size options - A4 optimized (210mm x 297mm)
+const PRINT_SIZES = [
+  { id: 'small', name: 'Minimum', width: 80, height: 80, desc: '3.1×3.1 inches (8×8cm)', displaySize: '4"' },
+  { id: 'medium', name: 'Optimal', width: 120, height: 120, desc: '4.7×4.7 inches (12×12cm)', displaySize: '6"' },
+  { id: 'large', name: 'Large', width: 160, height: 160, desc: '6.3×6.3 inches (16×16cm)', displaySize: '8"' },
+]
 
 // User Role Types
 type UserRole = 'super_admin' | 'admin' | 'user'
@@ -117,7 +127,7 @@ const Legend = Recharts.Legend as any
 
 // Subscription Plans
 type PlanType = 'free' | 'starter' | 'professional' | 'enterprise'
-type QRTemplate = 'standard' | 'luxury' | 'classic' | 'bold' | 'minimalist' | 'sports' | 'eco'
+type QRTemplate = 'standard' | 'luxury' | 'classic' | 'bold' | 'minimalist' | 'sports' | 'eco' | 'ev' | 'hybrid' | 'plugin_hybrid'
 type LeadInterest = 'urgent' | 'normal'
 type NotifType = 'scan' | 'lead' | 'expiry' | 'report'
 
@@ -177,6 +187,17 @@ interface CarData {
   logo_position: LogoPosition
   company_name_position: CompanyNamePosition
   created_at: string
+  // New regulatory fields
+  ccr_no: string
+  approved_on: string
+  produced_in_and_after: string
+  country_of_production: string
+  pollutant_limits: string
+  vin: string
+  label_no: string
+  manufacturer: string
+  motor_vehicle_class: string
+  fe_cafe_combined: string
 }
 
 interface ScanRecord {
@@ -239,7 +260,11 @@ const QR_TEMPLATES: Record<QRTemplate, { name: string; description: string; prev
   bold: { name: 'Bold', description: 'High impact red', preview: 'bg-gradient-to-br from-red-600 to-red-800', qrColor: '#ffffff', qrBg: '#dc2626', borderColor: '#991b1b', shape: 'circle' },
   minimalist: { name: 'Minimalist', description: 'Ultra clean white', preview: 'bg-white border-2 border-gray-200', qrColor: '#000000', qrBg: '#ffffff', borderColor: '#e5e7eb', shape: 'minimal' },
   sports: { name: 'Sports', description: 'Dynamic racing style', preview: 'bg-gradient-to-r from-blue-500 to-green-500', qrColor: '#ffffff', qrBg: '#0f172a', borderColor: '#22c55e', shape: 'hexagon' },
-  eco: { name: 'Eco', description: 'Natural green theme', preview: 'bg-gradient-to-br from-green-600 to-emerald-800', qrColor: '#ffffff', qrBg: '#16a34a', borderColor: '#15803d', shape: 'leaf' }
+  eco: { name: 'Eco', description: 'Natural green theme', preview: 'bg-gradient-to-br from-green-600 to-emerald-800', qrColor: '#ffffff', qrBg: '#16a34a', borderColor: '#15803d', shape: 'leaf' },
+  // Electric & Hybrid Templates
+  ev: { name: 'EV', description: 'Electric vehicle blue', preview: 'bg-gradient-to-br from-blue-500 to-blue-700', qrColor: '#ffffff', qrBg: '#2563eb', borderColor: '#1d4ed8', shape: 'square' },
+  hybrid: { name: 'Hybrid', description: 'Hybrid vehicle green', preview: 'bg-gradient-to-br from-green-500 to-green-700', qrColor: '#ffffff', qrBg: '#22c55e', borderColor: '#16a34a', shape: 'square' },
+  plugin_hybrid: { name: 'Plug-in Hybrid', description: 'Plug-in hybrid turquoise', preview: 'bg-gradient-to-br from-cyan-400 to-teal-600', qrColor: '#ffffff', qrBg: '#06b6d4', borderColor: '#0891b2', shape: 'square' }
 }
 
 // NEW: Enhanced QR Frame Templates (25+ decorative frames)
@@ -344,12 +369,31 @@ function emptyCar(companyId: string = ''): CarData {
     qr_shape: 'square',
     logo_position: 'none',
     company_name_position: 'top',
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    // New regulatory fields
+    ccr_no: '',
+    approved_on: '',
+    produced_in_and_after: '',
+    country_of_production: '',
+    pollutant_limits: '',
+    vin: '',
+    label_no: '',
+    manufacturer: '',
+    motor_vehicle_class: '',
+    fe_cafe_combined: ''
   }
 }
 
 function emptyLeadForm(): NewLeadForm {
   return { name: '', phone: '', email: '', interest_level: 'normal', notes: '' }
+}
+
+// Image compression settings for car photos
+const IMAGE_COMPRESSION_OPTIONS = {
+  maxSizeMB: 0.1, // 100KB max
+  maxWidthOrHeight: 1200, // Max dimension 1200px
+  useWebWorker: true,
+  fileType: 'image/jpeg' as const
 }
 
 function getPriceNumeric(price: string): number {
@@ -369,6 +413,7 @@ export default function App() {
   const [editingCar, setEditingCar] = useState<CarData | null>(null)
   const [viewingCarId, setViewingCarId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [dataKey, setDataKey] = useState(0) // Force re-render key
@@ -385,7 +430,7 @@ export default function App() {
     app_description: 'QR Code Management for Car Dealerships',
     primary_color: '#3b82f6',
     secondary_color: '#1e40af',
-    custom_qr_url: 'https://q2r3zr4j13l8.space.mcode.io', // Default to current deployment
+    custom_qr_url: window.location.origin || 'https://mfzl-2026.github.io/QRStag26', // Will auto-detect current domain
     updated_at: new Date().toISOString()
   })
 
@@ -402,6 +447,9 @@ export default function App() {
   const [selectedShape, setSelectedShape] = useState<string>('square')
   const [showFrameSelector, setShowFrameSelector] = useState(false)
   const [showShapeSelector, setShowShapeSelector] = useState(false)
+  const [printSize, setPrintSize] = useState('medium')
+  const qrPreviewRef = useRef<HTMLDivElement>(null)
+  const [qrImageDataUrl, setQrImageDataUrl] = useState<string>('')
 
   // Bulk Import States
   const [bulkImportData, setBulkImportData] = useState<Partial<CarData>[]>([])
@@ -420,7 +468,11 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0)
 
   // App Branding Settings (using Supabase - see appSettings state)
-  const [customQrUrl, setCustomQrUrl] = useState(() => localStorage.getItem(STORAGE_KEYS.CUSTOM_QR_URL) || '')
+  // Use current origin by default - QR codes will work on any domain
+  const [customQrUrl, setCustomQrUrl] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOM_QR_URL)
+    return saved || window.location.origin
+  })
 
   // Company-level tabs
   const [companyActiveTab, setCompanyActiveTab] = useState<{ [companyId: string]: 'cars' | 'analytics' | 'leads' }>({})
@@ -510,6 +562,19 @@ export default function App() {
         videoLink: car.video_link || ''
       }))
 
+      // Surface backend connectivity problems instead of silently showing an empty list
+      const firstError = carsRes.error || companiesRes.error || scansRes.error || leadsRes.error
+      if (firstError) {
+        const msg = String(firstError.message || '')
+        setConnectionError(
+          /fetch|network|dns|failed to fetch|load failed|timeout/i.test(msg)
+            ? 'Cannot reach the database. The Supabase project may be paused, deleted, or the URL/key in runtime-config.js is wrong.'
+            : 'Database error: ' + msg
+        )
+      } else {
+        setConnectionError(null)
+      }
+
       setCompanies(companiesRes.data || [])
       setCars(mappedCars)
       setScanRecords(scansRes.data || [])
@@ -520,6 +585,8 @@ export default function App() {
       console.log(`Data refreshed: ${scansRes.data?.length || 0} scan records, ${leadsRes.data?.length || 0} leads`)
     } catch (err) {
       console.error('Error fetching data:', err)
+      setConnectionError('Cannot reach the database: ' + (err instanceof Error ? err.message : String(err)))
+      if (!isRefresh) setLoading(false)
     }
     setRefreshing(false)
   }, [])
@@ -709,6 +776,44 @@ export default function App() {
     return () => clearInterval(interval)
   }, [isLoggedIn, viewingCarId, fetchData])
 
+  // Generate QR code image when editingCar changes
+  useEffect(() => {
+    if (!editingCar) {
+      setQrImageDataUrl('')
+      return
+    }
+
+    const generateQR = async () => {
+      try {
+        // Use GitHub Pages URL as fallback to ensure QR codes always work correctly
+        const defaultQrUrl = 'https://mfzl-2026.github.io/QRStag26'
+        const qrValue = `${appSettings.custom_qr_url || defaultQrUrl}/index-customer.html?car=${editingCar.id}`
+        const template = QR_TEMPLATES[editingCar.qr_template] || QR_TEMPLATES.standard
+
+        // Create a canvas and use qrcode library to generate QR
+        // Use template colors with high error correction for center logo support
+        const canvas = document.createElement('canvas')
+        await toCanvas(canvas, qrValue, {
+          width: 200,
+          margin: 1,
+          errorCorrectionLevel: 'H', // High error correction for center logo support
+          color: {
+            dark: template.qrColor || '#000000', // Use template color
+            light: template.qrBg || '#ffffff'   // Use template background
+          }
+        })
+
+        // Small delay to ensure canvas is ready
+        await new Promise(resolve => setTimeout(resolve, 100))
+        setQrImageDataUrl(canvas.toDataURL('image/png'))
+      } catch (err) {
+        console.error('QR generation error:', err)
+      }
+    }
+
+    generateQR()
+  }, [editingCar, appSettings.custom_qr_url])
+
   async function fetchCarById(carId: string) {
     const [carRes, companiesRes] = await Promise.all([
       supabase.from('cars').select('*').eq('id', carId).single(),
@@ -731,6 +836,7 @@ export default function App() {
         // Only record if within valid timeframe
         if ((!scanStart || now >= scanStart) && (!scanEnd || now <= scanEnd)) {
           await supabase.from('scan_records').insert([{
+            id: generateId(),
             car_id: carId,
             scanned_at: new Date().toISOString()
           }])
@@ -748,6 +854,7 @@ export default function App() {
     setIsLoggedIn(true)
     setLoginPassword('')
     fetchData()
+    fetchAppSettings() // Ensure settings are loaded
   }
 
   function handleLogin() {
@@ -757,6 +864,7 @@ export default function App() {
       localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
       setLoginPassword('')
       fetchData()
+      fetchAppSettings() // Ensure settings are loaded
     } else {
       alert('Incorrect password')
     }
@@ -876,6 +984,11 @@ export default function App() {
       setUserLoginEmail('')
       setUserLoginPassword('')
       addNotification('report', 'Welcome!', `Logged in as ${user.name} (${user.role.replace('_', ' ')})`)
+
+      // Load the data straight away — otherwise the dashboard stays empty until
+      // the 15 second auto-refresh timer fires.
+      fetchData()
+      fetchAppSettings()
     } else {
       alert('Invalid email or password')
     }
@@ -983,6 +1096,62 @@ export default function App() {
     reader.readAsDataURL(file)
   }
 
+  // Compress and add car images
+  async function handleCarImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files
+    if (!files || !editingCar) return
+
+    const currentImages = editingCar.images || []
+    if (currentImages.length >= 10) {
+      alert('Maximum 10 images allowed per car')
+      return
+    }
+
+    const newImages: string[] = []
+    const maxImages = Math.min(files.length, 10 - currentImages.length)
+
+    for (let i = 0; i < maxImages; i++) {
+      const file = files[i]
+      try {
+        // Compress image to max 100KB
+        const compressedFile = await imageCompression(file, IMAGE_COMPRESSION_OPTIONS)
+
+        // Convert to base64
+        const reader = new FileReader()
+        const imageData = await new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(compressedFile)
+        })
+        newImages.push(imageData)
+
+        // Log compression stats
+        const originalSize = (file.size / 1024).toFixed(1)
+        const compressedSize = (compressedFile.size / 1024).toFixed(1)
+        console.log(`Image compressed: ${originalSize}KB -> ${compressedSize}KB (${Math.round((1 - compressedFile.size / file.size) * 100)}% reduction)`)
+      } catch (err) {
+        console.error('Image compression error:', err)
+        // Fallback: use original image without compression
+        const reader = new FileReader()
+        const imageData = await new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(file)
+        })
+        newImages.push(imageData)
+      }
+    }
+
+    setEditingCar({ ...editingCar, images: [...currentImages, ...newImages] })
+    e.target.value = '' // Reset input
+  }
+
+  // Remove car image
+  function removeCarImage(index: number) {
+    if (!editingCar) return
+    const newImages = [...(editingCar.images || [])]
+    newImages.splice(index, 1)
+    setEditingCar({ ...editingCar, images: newImages })
+  }
+
   async function handleSaveCompany() {
     if (!editingCompany?.name.trim()) {
       alert('Company name is required')
@@ -996,11 +1165,20 @@ export default function App() {
         branding_color: editingCompany.branding_color?.startsWith('#') ? editingCompany.branding_color : `#${editingCompany.branding_color || '3b82f6'}`,
         branding_logo: editingCompany.branding_logo || ''
       }
-      const { error } = await supabase.from('companies').upsert([companyToSave])
-      if (error) throw error
+      // Tolerant upsert: if the database is missing a column (e.g. "plan"), the
+      // save still succeeds and the missing field is reported to the user.
+      const result = await upsertTolerant('companies', companyToSave)
+      if (!result.ok) throw result.error
       await fetchData()
       setEditingCompany(null)
       addNotification('report', 'Company Saved', `${editingCompany.name} has been ${companies.find(c => c.id === editingCompany.id) ? 'updated' : 'created'}`)
+      if (result.droppedColumns.length > 0) {
+        addNotification(
+          'report',
+          'Some fields were not saved',
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+        )
+      }
     } catch (err) {
       console.error('Error saving company:', err)
       alert('Error saving company')
@@ -1071,16 +1249,35 @@ export default function App() {
       delete (carToSave as any).videoLink
       // Remove video_link as column doesn't exist in database yet
       delete (carToSave as any).video_link
-      const { error } = await supabase.from('cars').upsert([carToSave])
-      if (error) throw error
+      const result = await upsertTolerant('cars', carToSave)
+      if (!result.ok) throw result.error
       await fetchData()
       setEditingCar(null)
       addNotification('report', 'Car Saved', `${editingCar.year} ${actualMake} ${actualModel} has been ${cars.find(c => c.id === editingCar.id) ? 'updated' : 'added'}`)
+      if (result.droppedColumns.length > 0) {
+        addNotification(
+          'report',
+          'Some fields were not saved',
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+        )
+      }
     } catch (err) {
       console.error('Error saving car:', err)
       alert('Error saving car')
     }
     setSaving(false)
+  }
+
+  async function handleAssignCar(carId: string, companyId: string) {
+    if (!companyId) return
+    const { error } = await supabase.from('cars').update({ company_id: companyId }).eq('id', carId)
+    if (error) {
+      console.error('Error assigning car:', error)
+      addNotification('lead', 'Assignment failed', String(error.message || error))
+      return
+    }
+    await fetchData()
+    addNotification('report', 'Vehicle Assigned', 'The vehicle now belongs to the selected company.')
   }
 
   async function handleDeleteCar(carId: string) {
@@ -1099,7 +1296,9 @@ export default function App() {
     const scanEnd = car.scan_end_date ? new Date(car.scan_end_date) : null
     if (scanStart && now < scanStart) return
     if (scanEnd && now > scanEnd) return
-    const { error } = await supabase.from('scan_records').insert([{ car_id: carId, scanned_at: new Date().toISOString() }])
+    // The id must be supplied by the client: some projects have scan_records.id
+    // as NOT NULL with no default, which makes an insert without id fail.
+    const { error } = await supabase.from('scan_records').insert([{ id: generateId(), car_id: carId, scanned_at: new Date().toISOString() }])
     if (error) {
       console.error('Error recording scan:', error)
     }
@@ -1128,15 +1327,22 @@ export default function App() {
         notes: leadForm.notes.trim(),
         created_at: new Date().toISOString()
       }
-      const { error } = await supabase.from('leads').insert([newLead])
-      if (error) {
-        alert('Error saving lead: ' + error.message)
-        console.error('Supabase error:', error)
+      const result = await insertTolerant('leads', newLead)
+      if (!result.ok) {
+        alert('Error saving lead: ' + (result.error?.message || 'unknown error'))
+        console.error('Supabase error:', result.error)
       } else {
         addNotification('lead', 'Lead Saved!', `${leadForm.name} - interest recorded`)
         setShowLeadForm(false)
         setCurrentLeadCarId(null)
         setLeadForm(emptyLeadForm())
+        if (result.droppedColumns.length > 0) {
+          addNotification(
+            'lead',
+            'Some fields were not saved',
+            `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+          )
+        }
       }
     } catch (err) {
       console.error('Error saving lead:', err)
@@ -1481,12 +1687,14 @@ export default function App() {
   function getCompanyCars(companyId: string) {
     let companyCars = cars.filter(c => c.company_id === companyId)
     if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      companyCars = companyCars.filter(c =>
-        c.make.toLowerCase().includes(q) ||
-        c.model.toLowerCase().includes(q) ||
-        c.year.toString().includes(q)
-      )
+      const q = searchQuery.toLowerCase().trim()
+      if (q) {
+        companyCars = companyCars.filter(c =>
+          (c.make?.toLowerCase() || '').includes(q) ||
+          (c.model?.toLowerCase() || '').includes(q) ||
+          String(c.year || '').includes(q)
+        )
+      }
     }
     if (filterPrice !== 'all') {
       companyCars = companyCars.filter(c => {
@@ -1579,7 +1787,10 @@ export default function App() {
       bold: { color: 'ffffff', bgcolor: 'dc2626', style: 'border:4px solid #991b1b;border-radius:50%;padding:4px' },
       minimalist: { color: '000000', bgcolor: 'ffffff', style: 'border:1px solid #e5e7eb;padding:8px' },
       sports: { color: 'ffffff', bgcolor: '0f172a', style: 'border:3px solid #22c55e;border-radius:4px' },
-      eco: { color: 'ffffff', bgcolor: '16a34a', style: 'border:3px solid #15803d;border-radius:12px 0 12px 0' }
+      eco: { color: 'ffffff', bgcolor: '16a34a', style: 'border:3px solid #15803d;border-radius:12px 0 12px 0' },
+      ev: { color: 'ffffff', bgcolor: '2563eb', style: 'border:3px solid #1d4ed8;border-radius:8px' },
+      hybrid: { color: 'ffffff', bgcolor: '22c55e', style: 'border:3px solid #16a34a;border-radius:8px' },
+      plugin_hybrid: { color: 'ffffff', bgcolor: '06b6d4', style: 'border:3px solid #0891b2;border-radius:8px' }
     }
 
     let baseStyle = templates[template] || templates.standard
@@ -1617,7 +1828,7 @@ export default function App() {
     if (!printWindow) return
     let html = `<!DOCTYPE html><html><head><title>Print Barcodes - ${company.name}</title><style>body{font-family:Arial;padding:10px;margin:0}.barcodes{display:flex;flex-wrap:wrap;gap:15px;justify-content:center}.card{background:white;padding:8px;text-align:center;page-break-inside:avoid;display:inline-block}.card .qr-wrapper{display:inline-block;padding:6px;position:relative}.card .qr-wrapper img.logo-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;object-fit:contain;background:white;border-radius:2px;padding:2px}.card .car-name{font-size:10px;font-weight:600;margin-top:4px}.card .logo-img{max-width:50px;max-height:25px;object-fit:contain;margin:0 auto;display:block}.card .company-name{font-size:9px;color:#333;font-weight:bold;text-align:center;margin-bottom:4px}@media print{body{padding:0}.card{margin:2px;page-break-inside:avoid}}</style></head><body><div class="barcodes">`
     companyCars.forEach(car => {
-      const url = getCarUrl(car.id)
+      const url = `${appSettings.custom_qr_url || window.location.origin}/index-customer.html?car=${car.id}`
       const styleParams = getQrStyleParams(car.qr_template, car.qr_frame, car.qr_shape)
 
       // QR with center logo only
@@ -1677,7 +1888,7 @@ export default function App() {
     const qrColor = template.qrColor.replace('#', '')
     const qrBg = template.qrBg.replace('#', '')
 
-    const url = getCarUrl(car.id)
+    const url = `${appSettings.custom_qr_url || window.location.origin}/index-customer.html?car=${car.id}`
 
     // QR size
     const qrSize = 200
@@ -1829,8 +2040,12 @@ export default function App() {
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(now)
       date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
-      const count = scanRecords.filter(s => s.scanned_at.startsWith(dateStr)).length
+      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)
+      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
+      const count = scanRecords.filter(s => {
+        const scanDate = new Date(s.scanned_at)
+        return scanDate >= dayStart && scanDate <= dayEnd
+      }).length
       data.push({ date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), scans: count })
     }
     return data
@@ -1985,14 +2200,21 @@ export default function App() {
       }))
 
       // Insert into Supabase
-      const { error } = await supabase.from('cars').insert(carsToInsert)
-      if (error) throw error
+      const result = await insertTolerant('cars', carsToInsert)
+      if (!result.ok) throw result.error
 
       // Refresh data
       await fetchData()
 
       setBulkImportStep('complete')
       addNotification('lead', 'Import Complete', `${validCars.length} cars imported successfully`)
+      if (result.droppedColumns.length > 0) {
+        addNotification(
+          'lead',
+          'Some fields were not saved',
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+        )
+      }
     } catch (err) {
       console.error('Error importing cars:', err)
       alert('Error importing cars')
@@ -2282,6 +2504,22 @@ export default function App() {
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto p-4">
+          {connectionError && (
+            <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-xl p-4">
+              <Shield className="w-5 h-5 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="font-semibold">Database connection problem</p>
+                <p className="text-sm mt-1">{connectionError}</p>
+                <p className="text-sm mt-1 text-red-700">
+                  Cars and leads cannot load until the database is reachable. Check the Supabase project status and
+                  the values in <code className="px-1 bg-red-100 rounded">runtime-config.js</code>.
+                </p>
+              </div>
+              <button onClick={() => fetchData(true)} disabled={refreshing} className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm disabled:opacity-50">
+                <Loader2 className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />Retry
+              </button>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {appSettings.app_logo ? (
@@ -3181,6 +3419,9 @@ export default function App() {
                                       <button onClick={() => printSingleCarQR(car.id)} className="flex items-center justify-center gap-1 px-2 py-1 bg-green-100 rounded text-sm text-green-700">
                                         <Printer className="w-3 h-3" />
                                       </button>
+                                      <button onClick={() => window.open(getCarUrl(car.id), '_blank')} className="flex items-center justify-center gap-1 px-2 py-1 bg-purple-100 rounded text-sm text-purple-700" title="Preview Customer View">
+                                        <ExternalLink className="w-3 h-3" />
+                                      </button>
                                       {hasPermission('car_edit') && (
                                         <button onClick={() => {
                                           // Clear custom states first, then set the car
@@ -3647,10 +3888,12 @@ export default function App() {
                                   for (let i = chartDays - 1; i >= 0; i--) {
                                     const date = new Date()
                                     date.setDate(date.getDate() - i)
-                                    const dateStr = date.toISOString().split('T')[0]
+                                    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)
+                                    const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
                                     const count = scanRecords.filter(s => {
                                       const car = cars.find(c => c.id === s.car_id)
-                                      return car?.company_id === company.id && s.scanned_at.startsWith(dateStr)
+                                      const scanDate = new Date(s.scanned_at)
+                                      return car?.company_id === company.id && scanDate >= dayStart && scanDate <= dayEnd
                                     }).length
                                     days.push({ date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), scans: count })
                                   }
@@ -3696,7 +3939,7 @@ export default function App() {
                           </div>
 
                           {/* Recent Scans */}
-                          <div className="bg-white p-4 rounded-xl border">
+                          <div className="bg-white p-4 rounded-xl border" key={`recent-scans-${recentScansRange}`}>
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="font-semibold">Recent Scans</h4>
                               <select
@@ -3711,36 +3954,44 @@ export default function App() {
                               </select>
                             </div>
                             {(() => {
+                              // Use consistent date parsing for all scans
                               const now = new Date()
-                              now.setHours(23, 59, 59, 999) // End of today
+                              now.setHours(23, 59, 59, 999)
                               const days = recentScansRange === '7d' ? 7 : recentScansRange === '14d' ? 14 : recentScansRange === '30d' ? 30 : 90
                               const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
-                              startDate.setHours(0, 0, 0, 0) // Start of day
+                              startDate.setHours(0, 0, 0, 0)
+
                               const recentScans = scanRecords.filter(s => {
                                 const car = cars.find(c => c.id === s.car_id)
                                 const scanDate = new Date(s.scanned_at)
                                 return car?.company_id === company.id && scanDate >= startDate && scanDate <= now
                               })
-                              return recentScans.length === 0 ? (
-                                <p className="text-gray-500 text-sm">No scans in the selected period</p>
-                              ) : (
-                                <div className="space-y-1 max-h-60 overflow-y-auto">
-                                  {recentScans.slice(0, 20).map(scan => {
-                                    const car = cars.find(c => c.id === scan.car_id)
-                                    const scanDate = new Date(scan.scanned_at)
-                                    const today = new Date()
-                                    today.setHours(0, 0, 0, 0)
-                                    const isToday = scanDate >= today
-                                    const displayDate = isToday
-                                      ? `Today ${scanDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                      : scanDate.toLocaleDateString()
-                                    return (
-                                      <div key={scan.id} className={`flex justify-between text-sm p-2 rounded ${isToday ? 'bg-green-50' : 'bg-gray-50'}`}>
-                                        <span>{car?.make} {car?.model}</span>
-                                        <span className={`${isToday ? 'text-green-600 font-medium' : 'text-gray-500'}`}>{displayDate}</span>
-                                      </div>
-                                    )
-                                  })}
+                              return (
+                                <div>
+                                  <p className="text-sm text-gray-500 mb-2">{recentScans.length} scan{recentScans.length !== 1 ? 's' : ''} in this period</p>
+                                  {recentScans.length === 0 ? (
+                                    <p className="text-gray-400 text-sm">No scans recorded</p>
+                                  ) : (
+                                    <div className="space-y-1 max-h-96 overflow-y-auto">
+                                      {recentScans.map(scan => {
+                                        const car = cars.find(c => c.id === scan.car_id)
+                                        // Parse date - Supabase returns ISO format
+                                        const scanDate = new Date(scan.scanned_at)
+                                        const today = new Date()
+                                        today.setHours(0, 0, 0, 0)
+                                        const isToday = scanDate >= today && scanDate <= new Date()
+                                        const displayDate = isToday
+                                          ? `Today ${scanDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                          : scanDate.toLocaleDateString()
+                                        return (
+                                          <div key={scan.id} className={`flex justify-between text-sm p-2 rounded ${isToday ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                            <span>{car?.make} {car?.model}</span>
+                                            <span className={`${isToday ? 'text-green-600 font-medium' : 'text-gray-500'}`}>{displayDate}</span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })()}
@@ -3814,6 +4065,56 @@ export default function App() {
             })}
           </div>
         )}
+
+        {/* Vehicles that are not linked to any company — restored data can contain
+            rows whose company_id is null, which would otherwise be invisible. */}
+        {(() => {
+          const unassigned = cars.filter(
+            c => !c.company_id || !companies.some(co => co.id === c.company_id)
+          )
+          if (unassigned.length === 0) return null
+          return (
+            <div className="mt-6 bg-white rounded-2xl shadow-lg overflow-hidden">
+              <div className="p-4 border-b flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-lg font-bold">Unassigned Vehicles</h3>
+                  <p className="text-sm text-gray-500">
+                    {unassigned.length} vehicle{unassigned.length === 1 ? '' : 's'} without a company. Assign them to make them visible in the company lists.
+                  </p>
+                </div>
+                <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm font-semibold">
+                  {unassigned.length}
+                </span>
+              </div>
+              <div className="divide-y">
+                {unassigned.map(car => (
+                  <div key={car.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">
+                        {car.year} {car.make} {car.model}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {car.price ? car.price : 'No price'} · {getCarScanCount(car.id)} scans
+                      </p>
+                    </div>
+                    <select
+                      defaultValue=""
+                      onChange={e => {
+                        if (e.target.value) handleAssignCar(car.id, e.target.value)
+                      }}
+                      className="border rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="" disabled>Assign to company…</option>
+                      {companies.map(co => (
+                        <option key={co.id} value={co.id}>{co.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
       </main>
 
       {/* Company Modal */}
@@ -4263,6 +4564,93 @@ export default function App() {
                   <label className="block text-sm font-medium mb-1">Description</label>
                   <textarea value={editingCar.description} onChange={(e) => setEditingCar({ ...editingCar, description: e.target.value })} className="w-full p-3 border rounded-lg h-20" placeholder="Car description..." />
                 </div>
+                {/* Car Images with Compression */}
+                <div className="col-span-2 border-t pt-4">
+                  <label className="block text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Image className="w-4 h-4" />Car Photos (Auto-compressed to 100KB)
+                    <span className="text-xs font-normal text-gray-500">Max 10 images</span>
+                  </label>
+                  {/* Existing Images */}
+                  {editingCar.images && editingCar.images.length > 0 && (
+                    <div className="grid grid-cols-5 gap-2 mb-3">
+                      {editingCar.images.map((img, idx) => (
+                        <div key={idx} className="relative group">
+                          <img src={img} alt="" className="w-full h-20 object-cover rounded-lg border" />
+                          <button
+                            type="button"
+                            onClick={() => removeCarImage(idx)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Upload Button */}
+                  {(!editingCar.images || editingCar.images.length < 10) && (
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <div className="flex flex-col items-center justify-center pt-2 pb-3">
+                        <Upload className="w-8 h-8 text-gray-400 mb-1" />
+                        <p className="text-sm text-gray-500">Click to upload</p>
+                        <p className="text-xs text-gray-400">Images auto-compressed to 100KB</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleCarImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+                {/* Vehicle Regulatory Information */}
+                <div className="col-span-2 border-t pt-4">
+                  <label className="block text-sm font-semibold mb-3 text-gray-700">Vehicle Regulatory Information</label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">CCR No.</label>
+                      <input type="text" value={editingCar.ccr_no || ''} onChange={(e) => setEditingCar({ ...editingCar, ccr_no: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="CCR Number" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Approved On</label>
+                      <input type="date" value={editingCar.approved_on || ''} onChange={(e) => setEditingCar({ ...editingCar, approved_on: e.target.value })} className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Produced In & After</label>
+                      <input type="text" value={editingCar.produced_in_and_after || ''} onChange={(e) => setEditingCar({ ...editingCar, produced_in_and_after: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., 2024" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Country of Production</label>
+                      <input type="text" value={editingCar.country_of_production || ''} onChange={(e) => setEditingCar({ ...editingCar, country_of_production: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., USA, Japan" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Pollutant Limits</label>
+                      <input type="text" value={editingCar.pollutant_limits || ''} onChange={(e) => setEditingCar({ ...editingCar, pollutant_limits: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., Euro 6" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">VIN</label>
+                      <input type="text" value={editingCar.vin || ''} onChange={(e) => setEditingCar({ ...editingCar, vin: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="Vehicle ID Number" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Label No.</label>
+                      <input type="text" value={editingCar.label_no || ''} onChange={(e) => setEditingCar({ ...editingCar, label_no: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="Label Number" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Manufacturer</label>
+                      <input type="text" value={editingCar.manufacturer || ''} onChange={(e) => setEditingCar({ ...editingCar, manufacturer: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="Manufacturer Name" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Motor Vehicle Class</label>
+                      <input type="text" value={editingCar.motor_vehicle_class || ''} onChange={(e) => setEditingCar({ ...editingCar, motor_vehicle_class: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., Class 1" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">FE (CAFE) Combined</label>
+                      <input type="text" value={editingCar.fe_cafe_combined || ''} onChange={(e) => setEditingCar({ ...editingCar, fe_cafe_combined: e.target.value })} className="w-full p-2 border rounded-lg text-sm" placeholder="e.g., 45 MPG" />
+                    </div>
+                  </div>
+                </div>
                 <div className="col-span-2 border-t pt-4">
                   <label className="block text-sm font-medium mb-3">QR Scan Timeframe</label>
                   <div className="grid grid-cols-2 gap-4">
@@ -4389,6 +4777,294 @@ export default function App() {
                     </select>
                   </div>
                 </div>
+
+                {/* QR Preview & Print Section */}
+                <div className="col-span-2 border-t pt-4 mt-4">
+                  <label className="block text-sm font-medium mb-3 flex items-center gap-2">
+                    <Printer className="w-4 h-4 text-blue-600" />QR Code Preview & Print
+                  </label>
+                  <div className="border rounded-xl p-4 bg-gray-50">
+                    {/* Print Size Selector */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-sm font-medium">Print Size:</span>
+                      <div className="flex gap-2">
+                        {PRINT_SIZES.map((size) => (
+                          <button
+                            key={size.id}
+                            type="button"
+                            onClick={() => setPrintSize(size.id)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                              printSize === size.id
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
+                            }`}
+                            title={size.desc}
+                          >
+                            {size.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* QR Preview - Shows ALL settings combined */}
+                    <div className="flex flex-col items-center">
+                      <div
+                        ref={qrPreviewRef}
+                        className="qr-preview-container"
+                        style={{
+                          background: QR_TEMPLATES[editingCar.qr_template]?.qrBg || '#ffffff',
+                          padding: '16px',
+                          border: `3px solid ${QR_TEMPLATES[editingCar.qr_template]?.borderColor || '#333'}`,
+                          borderRadius: QR_SHAPES.find(s => s.id === editingCar.qr_shape)?.borderRadius || '8px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          display: 'inline-block',
+                          textAlign: 'center',
+                          position: 'relative'
+                        }}
+                      >
+                        {/* TOP SECTION - Company Name */}
+                        {editingCar.company_name_position === 'top' && companies.find(c => c.id === editingCar.company_id)?.name && (
+                          <div style={{ fontSize: '14px', fontWeight: 'bold', color: QR_TEMPLATES[editingCar.qr_template]?.qrColor || '#333', marginBottom: '8px' }}>
+                            {companies.find(c => c.id === editingCar.company_id)?.name}
+                          </div>
+                        )}
+
+                        {/* TOP SECTION - Logo */}
+                        {editingCar.logo_position === 'top' && companies.find(c => c.id === editingCar.company_id)?.branding_logo && (
+                          <img src={companies.find(c => c.id === editingCar.company_id)?.branding_logo || ''} alt="Logo" style={{ maxWidth: '80px', maxHeight: '40px', objectFit: 'contain', margin: '0 auto 8px', display: 'block' }} />
+                        )}
+
+                        {/* QR CODE */}
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <div style={{ background: '#ffffff', padding: '8px', borderRadius: QR_SHAPES.find(s => s.id === editingCar.qr_shape)?.borderRadius || '8px', overflow: 'hidden', display: 'inline-block' }}>
+                            {qrImageDataUrl ? (
+                              <img src={qrImageDataUrl} alt="QR Code" style={{ width: '180px', height: '180px', display: 'block' }} />
+                            ) : (
+                              <div style={{ width: '180px', height: '180px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#666' }}>
+                                Loading...
+                              </div>
+                            )}
+                          </div>
+                          {/* CENTER LOGO OVERLAY */}
+                          {editingCar.logo_position === 'center' && companies.find(c => c.id === editingCar.company_id)?.branding_logo && (
+                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
+                              <img src={companies.find(c => c.id === editingCar.company_id)?.branding_logo || ''} alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain', background: QR_TEMPLATES[editingCar.qr_template]?.qrBg || '#ffffff', borderRadius: '4px', padding: '2px' }} />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* BOTTOM SECTION - Logo */}
+                        {editingCar.logo_position === 'bottom' && companies.find(c => c.id === editingCar.company_id)?.branding_logo && (
+                          <img src={companies.find(c => c.id === editingCar.company_id)?.branding_logo || ''} alt="Logo" style={{ maxWidth: '80px', maxHeight: '40px', objectFit: 'contain', margin: '8px auto 0', display: 'block' }} />
+                        )}
+
+                        {/* BOTTOM SECTION - Company Name */}
+                        {editingCar.company_name_position === 'bottom' && companies.find(c => c.id === editingCar.company_id)?.name && (
+                          <div style={{ fontSize: '14px', fontWeight: 'bold', color: QR_TEMPLATES[editingCar.qr_template]?.qrColor || '#333', marginTop: '8px' }}>
+                            {companies.find(c => c.id === editingCar.company_id)?.name}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">{editingCar.year} {editingCar.make} {editingCar.model}</p>
+
+                      {/* Print & Download Buttons */}
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!qrPreviewRef.current) return
+                            try {
+                              // Wait for all images to load
+                              const images = qrPreviewRef.current.querySelectorAll('img')
+                              await Promise.all(Array.from(images).map(img => {
+                                if (img.complete) return Promise.resolve()
+                                return new Promise((resolve, reject) => {
+                                  img.onload = resolve
+                                  img.onerror = resolve // Don't fail on error
+                                  setTimeout(resolve, 2000) // Timeout fallback
+                                })
+                              }))
+
+                              // Small delay for render
+                              await new Promise(r => setTimeout(r, 200))
+
+                              const canvas = await html2canvas(qrPreviewRef.current, {
+                                scale: 2,
+                                useCORS: true,
+                                allowTaint: true,
+                                backgroundColor: null,
+                                imageTimeout: 0
+                              })
+                              const link = document.createElement('a')
+                              link.download = `qr-${editingCar.make}-${editingCar.model}-${printSize}.png`
+                              link.href = canvas.toDataURL('image/png')
+                              link.click()
+                            } catch (err) {
+                              console.error('Download error:', err)
+                              alert('Failed to download QR code')
+                            }
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition"
+                        >
+                          <Download className="w-4 h-4" /> Download
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!qrImageDataUrl) {
+                              alert('QR code is still loading. Please wait and try again.')
+                              return
+                            }
+                            try {
+                              const sizeConfig = PRINT_SIZES.find(s => s.id === printSize) || PRINT_SIZES[0]
+                              const printWindow = window.open('', '_blank')
+                              if (!printWindow) {
+                                alert('Please allow popups to print')
+                                return
+                              }
+
+                              // Get company and template info
+                              const company = companies.find(c => c.id === editingCar.company_id)
+                              const template = QR_TEMPLATES[editingCar.qr_template] || QR_TEMPLATES.standard
+
+                              // A4 optimized sizes (210mm x 297mm)
+                              const qrWidthMm = `${sizeConfig.width}mm`
+                              const qrHeightMm = `${sizeConfig.height}mm`
+                              const paddingMm = '20mm'
+                              const fontSize = `${Math.round(sizeConfig.width * 0.11)}pt`
+
+                              // Use logo URL (original or base64 converted)
+                              const logoUrl = company?.branding_logo || ''
+
+                              // Build logo HTML if present - use original URL directly for better compatibility
+                              let logoHtml = ''
+                              const logoSizePrint = Math.round(sizeConfig.width * 0.4)
+                              if (logoUrl && editingCar.logo_position === 'top') {
+                                logoHtml += `<img src="${logoUrl}" style="max-width: ${logoSizePrint}px; max-height: ${Math.round(logoSizePrint * 0.5)}px; object-fit: contain; margin: 0 auto 10px; display: block;" alt="Logo" crossorigin="anonymous" />`
+                              }
+
+                              // Build company name HTML if present
+                              let nameHtml = ''
+                              if (company?.name && editingCar.company_name_position === 'top') {
+                                nameHtml += `<div style="font-size: ${fontSize}; font-weight: bold; color: ${template.qrColor || '#333'}; margin-bottom: 10px;">${company.name}</div>`
+                              }
+
+                              let bottomLogoHtml = ''
+                              if (logoUrl && editingCar.logo_position === 'bottom') {
+                                bottomLogoHtml += `<img src="${logoUrl}" style="max-width: ${logoSizePrint}px; max-height: ${Math.round(logoSizePrint * 0.5)}px; object-fit: contain; margin: 10px auto 0; display: block;" alt="Logo" crossorigin="anonymous" />`
+                              }
+
+                              let bottomNameHtml = ''
+                              if (company?.name && editingCar.company_name_position === 'bottom') {
+                                bottomNameHtml += `<div style="font-size: ${fontSize}; font-weight: bold; color: ${template.qrColor || '#333'}; margin-top: 10px;">${company.name}</div>`
+                              }
+
+                              // Center logo positioned over QR - use mm for print
+                              let centerLogoHtml = ''
+                              const logoSizeMm = Math.round(sizeConfig.width * 0.2) // 20% of QR size
+                              if (logoUrl && editingCar.logo_position === 'center') {
+                                centerLogoHtml = `
+                                  <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10;">
+                                    <img src="${logoUrl}" style="width: ${logoSizeMm}mm; height: ${logoSizeMm}mm; object-fit: contain; background: ${template.qrBg || '#ffffff'}; border-radius: 2px; padding: 1px;" alt="Logo" crossorigin="anonymous" />
+                                  </div>
+                                `
+                              }
+
+                              printWindow.document.write(`
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                  <title>Print QR Code - ${sizeConfig.name} on A4</title>
+                                  <style>
+                                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                                    @page { size: 210mm 297mm; margin: 0; }
+                                    body {
+                                      width: 210mm;
+                                      min-height: 297mm;
+                                      font-family: Arial, sans-serif;
+                                      background: #fff;
+                                      display: flex;
+                                      justify-content: center;
+                                      padding: 20mm 0;
+                                    }
+                                    .qr-container {
+                                      text-align: center;
+                                      padding: 0 ${paddingMm};
+                                      display: flex;
+                                      flex-direction: column;
+                                      align-items: center;
+                                      justify-content: center;
+                                      max-width: 210mm;
+                                      background: ${template.qrBg || '#ffffff'};
+                                      border: 3px solid ${template.borderColor || '#333'};
+                                      border-radius: 8px;
+                                      position: relative;
+                                    }
+                                    .qr-wrapper {
+                                      position: relative;
+                                      display: inline-block;
+                                    }
+                                    .qr-image {
+                                      width: ${qrWidthMm};
+                                      height: ${qrHeightMm};
+                                      object-fit: contain;
+                                      display: block;
+                                    }
+                                    .car-info {
+                                      margin-top: 10mm;
+                                      font-size: ${fontSize};
+                                      color: #333;
+                                      text-align: center;
+                                    }
+                                    .car-price {
+                                      font-size: ${fontSize};
+                                      color: #2563eb;
+                                      font-weight: bold;
+                                      margin-top: 5px;
+                                    }
+                                    @media print {
+                                      body { margin: 0; }
+                                    }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="qr-container">
+                                    ${nameHtml}
+                                    ${logoHtml}
+                                    <div class="qr-wrapper">
+                                      <img src="${qrImageDataUrl}" class="qr-image" alt="QR Code" />
+                                      ${centerLogoHtml}
+                                    </div>
+                                    ${bottomLogoHtml}
+                                    ${bottomNameHtml}
+                                    <div class="car-info">
+                                      <strong>${editingCar.year} ${editingCar.make} ${editingCar.model}</strong>
+                                      ${editingCar.price ? `<div class="car-price">${editingCar.price}</div>` : ''}
+                                    </div>
+                                  </div>
+                                  <script>
+                                    window.onload = function() {
+                                      setTimeout(function() { window.print(); }, 300);
+                                    };
+                                  </script>
+                                </body>
+                                </html>
+                              `)
+                              printWindow.document.close()
+                            } catch (err) {
+                              console.error('Print error:', err)
+                              alert('Failed to print QR code')
+                            }
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"
+                        >
+                          <Printer className="w-4 h-4" /> Print {PRINT_SIZES.find(s => s.id === printSize)?.name} ({PRINT_SIZES.find(s => s.id === printSize)?.displaySize}) A4
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="col-span-2">
                   <label className="block text-sm font-medium mb-2">Car Photos (up to 10)</label>
                   <div className="grid grid-cols-2 gap-3">
