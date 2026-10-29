@@ -38,6 +38,14 @@
 --
 --   The script is IDEMPOTENT: safe to run more than once, and safe on a
 --   database that already has the columns.
+--
+--   TYPE NOTE
+--     companies.custom_features already exists on this project as TEXT[]
+--     (a plain list of feature strings), which is exactly what the app
+--     sends. It must NOT be forced to jsonb - assigning a jsonb value to a
+--     text[] column aborts the whole transaction with
+--     "42804: column custom_features is of type text[] but expression is of
+--     type jsonb". Every statement below therefore uses TEXT[] for it.
 -- ============================================================
 
 
@@ -46,13 +54,14 @@
 -- ------------------------------------------------------------
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS custom_price INTEGER;
-ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS custom_features JSONB DEFAULT '[]'::jsonb;
+-- custom_features already exists on this project as TEXT[] -> keep that type
+ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS custom_features TEXT[] DEFAULT '{}'::text[];
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS branding_color TEXT DEFAULT '#3b82f6';
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS branding_logo TEXT DEFAULT '';
 
 UPDATE public.companies SET plan = 'free' WHERE plan IS NULL;
 UPDATE public.companies SET branding_color = '#3b82f6' WHERE branding_color IS NULL OR branding_color = '';
-UPDATE public.companies SET custom_features = '[]'::jsonb WHERE custom_features IS NULL;
+UPDATE public.companies SET custom_features = '{}'::text[] WHERE custom_features IS NULL;
 
 
 -- ------------------------------------------------------------
