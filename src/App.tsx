@@ -1287,7 +1287,7 @@ export default function App() {
         addNotification(
           'report',
           'Some fields were not saved',
-          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run add_car_specifications.sql (or migrate_restored_project.sql) in the Supabase SQL Editor to add them.`
         )
       }
     } catch (err) {
@@ -1386,7 +1386,7 @@ export default function App() {
         addNotification(
           'report',
           'Some fields were not saved',
-          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run add_car_specifications.sql (or migrate_restored_project.sql) in the Supabase SQL Editor to add them.`
         )
       }
     } catch (err) {
@@ -1468,7 +1468,7 @@ export default function App() {
           addNotification(
             'lead',
             'Some fields were not saved',
-            `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+            `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run add_car_specifications.sql (or migrate_restored_project.sql) in the Supabase SQL Editor to add them.`
           )
         }
       }
@@ -2340,7 +2340,7 @@ export default function App() {
         addNotification(
           'lead',
           'Some fields were not saved',
-          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run migrate_restored_project.sql to add them.`
+          `This database has no column(s) for: ${result.droppedColumns.join(', ')}. Run add_car_specifications.sql (or migrate_restored_project.sql) in the Supabase SQL Editor to add them.`
         )
       }
     } catch (err) {
