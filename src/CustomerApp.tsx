@@ -76,6 +76,51 @@ interface Car {
   manufacturer?: string
   motor_vehicle_class?: string
   fe_cafe_combined?: string
+  // Vehicle Specifications
+  body_type?: string
+  car_condition?: string
+  trim_level?: string
+  engine?: string
+  horsepower?: string
+  cylinders?: number | null
+  wheel_drive?: string
+  turbo?: string
+  number_of_seats?: number | null
+  seat_material?: string
+  wheel_size?: string
+  warranty_status?: string
+  warranty_details?: string
+  camera_features?: string[]
+}
+
+/**
+ * Vehicle specification fields shown on the customer page.
+ * Empty values are skipped, so a vehicle only shows the specs it actually has.
+ */
+function getCarSpecifications(car: Car): { label: string; value: string }[] {
+  const specs: { label: string; value: string }[] = []
+  const push = (label: string, value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === '') return
+    specs.push({ label, value: String(value) })
+  }
+  push('Body Type', car.body_type)
+  push('Condition', car.car_condition)
+  push('Trim', car.trim_level)
+  push('Engine Capacity', car.engine)
+  push('Horsepower', car.horsepower ? `${car.horsepower} HP` : '')
+  push('Cylinders', car.cylinders)
+  push('Wheel Drive', car.wheel_drive)
+  push('Turbo', car.turbo)
+  push('Seats', car.number_of_seats)
+  push('Seat Material', car.seat_material)
+  push('Wheel Size', car.wheel_size)
+  push('Warranty', car.warranty_status)
+  push('Warranty Details', car.warranty_details)
+  const cameras = Array.isArray(car.camera_features) ? car.camera_features : []
+  if (cameras.length > 0) {
+    specs.push({ label: 'Camera Features', value: cameras.join(', ') })
+  }
+  return specs
 }
 
 interface Company {
@@ -310,7 +355,24 @@ export default function CustomerApp() {
           label_no: carData.label_no || '',
           manufacturer: carData.manufacturer || '',
           motor_vehicle_class: carData.motor_vehicle_class || '',
-          fe_cafe_combined: carData.fe_cafe_combined || ''
+          fe_cafe_combined: carData.fe_cafe_combined || '',
+          // Vehicle Specifications
+          body_type: carData.body_type || '',
+          car_condition: carData.car_condition || '',
+          trim_level: carData.trim_level || '',
+          engine: carData.engine || '',
+          horsepower: carData.horsepower || '',
+          cylinders: carData.cylinders ?? null,
+          wheel_drive: carData.wheel_drive || '',
+          turbo: carData.turbo || '',
+          number_of_seats: carData.number_of_seats ?? null,
+          seat_material: carData.seat_material || '',
+          wheel_size: carData.wheel_size || '',
+          warranty_status: carData.warranty_status || '',
+          warranty_details: carData.warranty_details || '',
+          camera_features: Array.isArray(carData.camera_features)
+            ? carData.camera_features
+            : []
         }
 
         setCar(car)
@@ -624,6 +686,7 @@ export default function CustomerApp() {
   const templateColors = getTemplateColors()
   const qrUrl = `${qrBaseUrl}index-customer.html?car=${car.id}`
   const isActive = isQRActive()
+  const carSpecs = getCarSpecifications(car)
 
   return (
     <div className="min-h-screen" style={{ background: templateColors.bg }}>
@@ -739,6 +802,21 @@ export default function CustomerApp() {
               </div>
             )}
           </div>
+
+          {/* Vehicle Specifications */}
+          {carSpecs.length > 0 && (
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-800 mb-3">Specifications</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {carSpecs.map(spec => (
+                  <div key={spec.label} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-gray-500 text-xs mb-1">{spec.label}</p>
+                    <p className="font-semibold text-sm text-gray-800">{spec.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Description */}
           {car.description && (

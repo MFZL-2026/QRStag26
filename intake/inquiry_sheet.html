@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Car QR Showcase - Vehicle Inquiry Sheet</title>
+<style>
+@page { size: A4 portrait; margin: 12mm; }
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Trebuchet MS", "Calibri", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: 9pt; line-height: 1.4; color: #000814;
+  -webkit-font-smoothing: antialiased;
+}
+.page { position: relative; box-sizing: border-box; min-height: 273mm;
+  padding-top: 7mm; padding-bottom: 6mm; }
+.page + .page { break-before: page; }
+
+.run-head {
+  position: absolute; top: 0; left: 0; right: 0; height: 7mm;
+  border-bottom: 0.6pt solid #9FB3C8; font-size: 7.4pt; color: #1F4E85; line-height: 7mm;
+}
+.run-head .l { float: left; font-weight: bold; letter-spacing: .3pt; }
+.run-head .r { float: right; }
+.run-foot {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 7mm;
+  border-top: 0.6pt solid #9FB3C8; font-size: 7pt; color: #4E6E8E; line-height: 7mm;
+}
+.run-foot .l { float: left; }
+.run-foot .r { float: right; }
+
+.masthead {
+  background: #001D3D; color: #fff; padding: 2.2mm 4.2mm; border-left: 3mm solid #FFC300;
+  display: flex; align-items: flex-end; justify-content: space-between;
+}
+.masthead h1 { margin: 0; font-size: 12.8pt; letter-spacing: .2pt; line-height: 1.12; }
+.masthead h1 span { color: #FFC300; }
+.masthead .sub { margin-top: .6mm; font-size: 7.6pt; color: #C3D3E4; }
+.masthead .meta { text-align: right; font-size: 7.4pt; color: #C3D3E4; line-height: 1.45; }
+.masthead .meta b { color: #FFC300; display: block; font-size: 8.6pt; letter-spacing: .4pt; }
+
+.toc { margin: 2mm 0 1.6mm; border: 0.6pt solid #C3D3E4; background: #F7F9FB; padding: 1.2mm 2.2mm; }
+.toc-h { font-size: 7pt; text-transform: uppercase; letter-spacing: .7pt;
+  color: #1F4E85; font-weight: bold; margin-bottom: 1mm; }
+.toc-grid { display: flex; flex-wrap: wrap; column-gap: 3.2mm; row-gap: .6mm; }
+.toc-row { font-size: 6.6pt; color: #16324F; text-decoration: none;
+  padding: .2mm 1.2mm; background: #fff; border: .3pt solid #C3D3E4; white-space: nowrap; }
+.toc-row .pg { color: #B8860B; font-weight: bold; }
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; column-gap: 5mm; align-items: start; }
+
+.sec { margin-bottom: 1.8mm; }
+.sec-h { display: flex; align-items: baseline; gap: 1.8mm; border-bottom: 1pt solid #001D3D;
+  padding-bottom: .6mm; margin-bottom: 1.3mm; page-break-after: avoid; }
+.sec-letter { background: #FFC300; color: #000814; font-weight: bold; font-size: 8.2pt;
+  padding: .2mm 1.5mm; }
+.sec-h h3 { margin: 0; font-size: 9.2pt; letter-spacing: .1pt; }
+.sec-note { font-size: 7pt; color: #4E6E8E; margin-left: auto; font-style: italic; }
+
+.grid { display: grid; column-gap: 3.4mm; row-gap: 1.2mm; }
+.g2 { grid-template-columns: repeat(2, 1fr); }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.g4 { grid-template-columns: repeat(4, 1fr); }
+.g5 { grid-template-columns: repeat(5, 1fr); }
+.fld { display: block; }
+.fld.wide { grid-column: 1 / -1; }
+.lab { display: block; font-size: 6.9pt; text-transform: uppercase; letter-spacing: .5pt;
+  color: #1F4E85; font-weight: bold; }
+.req { color: #C62828; }
+.hint { display: block; font-size: 6.6pt; color: #4E6E8E; font-style: italic; font-weight: normal;
+  text-transform: none; letter-spacing: 0; margin-left: 0; margin-top: .3mm; }
+.rule { display: block; border-bottom: 0.6pt solid #000814; height: 8mm; margin-top: .4mm; }
+.writebox { display: block; border: 0.6pt solid #9FB3C8; margin-top: .8mm; background:
+  repeating-linear-gradient(to bottom, transparent 0, transparent 5.2mm, #D9E2EC 5.2mm, #D9E2EC 5.3mm); }
+
+.checks { display: grid; column-gap: 2mm; row-gap: .4mm; margin-top: .7mm; }
+.c3 { grid-template-columns: repeat(3, 1fr); }
+.c4 { grid-template-columns: repeat(4, 1fr); }
+.c5 { grid-template-columns: repeat(5, 1fr); }
+.c6 { grid-template-columns: repeat(6, 1fr); }
+.c7 { grid-template-columns: repeat(7, 1fr); }
+.c10 { grid-template-columns: repeat(10, 1fr); }
+.ck { font-size: 7.2pt; color: #16324F; display: flex; align-items: center; gap: .9mm;
+  white-space: nowrap; }
+.ck i { width: 3.3mm; height: 3.3mm; border: 0.6pt solid #000814; display: inline-block;
+  flex: 0 0 auto; }
+.checks.feat .ck i { width: 3.2mm; height: 3.2mm; }
+.checks.feat { row-gap: .8mm; }
+.checks.tight { margin-bottom: 1.2mm; }
+
+.nextbox { margin-top: 1.6mm; border: 0.6pt solid #C3D3E4; background: #F7F9FB; padding: 2mm 3mm; }
+.next-h { font-size: 7.4pt; text-transform: uppercase; letter-spacing: .6pt; color: #1F4E85;
+  font-weight: bold; margin-bottom: 1.2mm; }
+.nextbox p { font-size: 7.4pt; color: #16324F; line-height: 1.55; margin: 0; }
+.note { font-size: 7pt; color: #16324F; margin: 1mm 0 0; line-height: 1.38; }
+.note.warn { background: #FFF8E1; border-left: 1.3mm solid #FFC300; padding: 1.2mm 1.8mm;
+  color: #4A3800; }
+.sigrow { display: grid; grid-template-columns: 1fr 1fr; column-gap: 5mm; margin-top: 1.4mm; }
+.sig .rule { height: 9.5mm; }
+
+.steps { margin: 0; padding-left: 4.2mm; font-size: 7.2pt; line-height: 1.36; }
+.steps li { margin-bottom: 1mm; }
+table.map { width: 100%; border-collapse: collapse; font-size: 6.2pt; }
+table.map th { background: #001D3D; color: #fff; text-align: left; padding: .9mm 1.1mm;
+  font-size: 6.4pt; text-transform: uppercase; letter-spacing: .3pt; }
+table.map td { padding: .18mm 1.1mm; border-bottom: .3pt solid #C3D3E4; vertical-align: top;
+  line-height: 1.25; }
+table.map tbody tr:nth-child(even) { background: #F7F9FB; }
+.c-sec { width: 6mm; color: #4E6E8E; font-weight: bold; text-align: center; }
+.c-form { color: #1F4E85; font-weight: bold; }
+.c-note { color: #4E6E8E; }
+.vr { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm; row-gap: 1.4mm; }
+.vr-b { break-inside: avoid; }
+.vr-h { font-size: 6.9pt; text-transform: uppercase; letter-spacing: .45pt; color: #1F4E85;
+  font-weight: bold; margin-bottom: .6mm; }
+.pills { display: flex; flex-wrap: wrap; gap: .8mm; }
+.pill { font-size: 6.8pt; background: #F0F4F8; border: .3pt solid #C3D3E4; color: #16324F;
+  padding: .35mm 1.2mm; }
+.pill.mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 6.6pt; }
+.traps { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4mm; row-gap: .9mm; }
+.trap { break-inside: avoid; }
+.trap-h { font-size: 7.3pt; font-weight: bold; color: #000814; border-left: 1.3mm solid #FFC300;
+  padding-left: 1.6mm; margin-bottom: .5mm; }
+.trap-b { font-size: 7pt; color: #16324F; line-height: 1.32; }
+
+@media screen {
+  html { background: #d0d0d0; }
+  body { margin: 0; padding: 20px 0; }
+  body > section.page {
+    width: 210mm; min-height: 297mm; margin: 0 auto 20px; background: #fff;
+    box-shadow: 0 4px 24px rgba(0,0,0,.18); box-sizing: border-box; overflow: hidden;
+  }
+}
+</style>
+</head>
+<body>
+
+<section class="page" id="page-1">
+  <div class="run-head">
+    <span class="l">CAR QR SHOWCASE &mdash; VEHICLE INQUIRY SHEET</span>
+    <span class="r">One sheet per vehicle &middot; Page 1 of 4</span>
+  </div>
+  <div class="masthead">
+    <div>
+      <h1>Vehicle <span>Inquiry Sheet</span></h1>
+      <div class="sub">Car QR Showcase &mdash; details for the QR vehicle profile and dealer dashboard</div>
+    </div>
+    <div class="meta">
+      <b>DEALER</b>
+      <div style="margin-top:1mm">Sheet ref: ________________</div>
+      <div>Date: ____ / ____ / ________</div>
+    </div>
+  </div>
+  <nav class="toc" aria-label="Sheet index"><div class="toc-h">Index - pages 1-2 are the sheet, pages 3-4 are the operator reference</div><div class="toc-grid"><a class="toc-row" href="#sec-a">A. Vehicle identity <span class="pg">1</span></a><a class="toc-row" href="#sec-b">B. Specifications and pricing <span class="pg">1</span></a><a class="toc-row" href="#sec-c">C. Description and features <span class="pg">1</span></a><a class="toc-row" href="#sec-d">D. Contact <span class="pg">1</span></a><a class="toc-row" href="#sec-e">E. Regulatory information <span class="pg">2</span></a><a class="toc-row" href="#sec-f">F. Photos and media <span class="pg">2</span></a><a class="toc-row" href="#sec-g">G. Interior and warranty <span class="pg">2</span></a><a class="toc-row" href="#sec-h">H. Sign-off <span class="pg">2</span></a><a class="toc-row" href="#sec-i">I. How to use this sheet <span class="pg">3</span></a><a class="toc-row" href="#sec-j">J. Field mapping to the Edit Car form <span class="pg">3</span></a><a class="toc-row" href="#sec-k">K. Traps to avoid <span class="pg">3</span></a><a class="toc-row" href="#sec-l">L. Valid values reference <span class="pg">4</span></a></div></nav>
+  <div class="cols">
+    <div>
+      <section class="sec" id="sec-a"><div class="sec-h"><span class="sec-letter">A</span><h3>Vehicle identity</h3><span class="sec-note">Required fields are marked *</span></div><div class="grid g3"><div class="fld " style="grid-column: span 3"><span class="lab">Dealer / company</span><span class="hint">exact registered name</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Make <b class="req">*</b></span><span class="hint">choose from list</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Model <b class="req">*</b></span><span class="hint">depends on make</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Year</span><span class="hint">e.g. 2024</span><div class="rule"></div></div></div><div class="grid g2"><div class="fld " style="grid-column: span 1"><span class="lab">VIN / chassis no.</span><span class="hint">17 characters</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Country of origin</span><span class="hint">e.g. Japan</span><div class="rule"></div></div></div><div class="fld wide tight"><span class="lab">Body type (tick one)</span><div class="checks c6"><span class="ck"><i></i>Sedan</span><span class="ck"><i></i>SUV</span><span class="ck"><i></i>Crossover</span><span class="ck"><i></i>Coupe</span><span class="ck"><i></i>Hatchback</span><span class="ck"><i></i>Wagon</span><span class="ck"><i></i>Station Wagon</span><span class="ck"><i></i>Convertible</span><span class="ck"><i></i>Pickup Truck</span><span class="ck"><i></i>Van</span><span class="ck"><i></i>Minivan</span><span class="ck"><i></i>Truck</span></div></div><div class="grid g2"><div class="fld " style="grid-column: span 1"><span class="lab">Car condition</span><span class="hint">New / Used / Certified</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Trim level</span><span class="hint">e.g. Sport</span><div class="rule"></div></div></div></section>
+      <section class="sec" id="sec-b"><div class="sec-h"><span class="sec-letter">B</span><h3>Specifications and pricing</h3><span class="sec-note">The buyer sees all of this</span></div><div class="grid g3"><div class="fld " style="grid-column: span 1"><span class="lab">Price</span><span class="hint">e.g. $25,000</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Mileage</span><span class="hint">e.g. 50,000 KM</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Location</span><span class="hint">city, showroom</span><div class="rule"></div></div></div><div class="fld wide tight"><span class="lab">Colour (tick one)</span><div class="checks c7"><span class="ck"><i></i>White</span><span class="ck"><i></i>Black</span><span class="ck"><i></i>Silver</span><span class="ck"><i></i>Gray</span><span class="ck"><i></i>Red</span><span class="ck"><i></i>Blue</span><span class="ck"><i></i>Green</span><span class="ck"><i></i>Yellow</span><span class="ck"><i></i>Orange</span><span class="ck"><i></i>Brown</span><span class="ck"><i></i>Beige</span><span class="ck"><i></i>Gold</span><span class="ck"><i></i>Other</span></div></div><div class="fld wide tight"><span class="lab">Fuel type (tick one)</span><div class="checks c4"><span class="ck"><i></i>Gasoline</span><span class="ck"><i></i>Diesel</span><span class="ck"><i></i>Electric</span><span class="ck"><i></i>Hybrid</span><span class="ck"><i></i>Plug-in Hybrid</span><span class="ck"><i></i>CNG</span><span class="ck"><i></i>LPG</span><span class="ck"><i></i>Other</span></div></div><div class="fld wide tight"><span class="lab">Transmission (tick one)</span><div class="checks c5"><span class="ck"><i></i>Automatic</span><span class="ck"><i></i>Manual</span><span class="ck"><i></i>Semi-Automatic</span><span class="ck"><i></i>CVT</span><span class="ck"><i></i>Other</span></div></div><div class="grid g3"><div class="fld " style="grid-column: span 1"><span class="lab">Engine capacity</span><span class="hint">e.g. 2.0L</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Horsepower (HP)</span><span class="hint">e.g. 203</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Number of cylinders</span><span class="hint">e.g. 4</span><div class="rule"></div></div></div><div class="grid g2"><div class="fld " style="grid-column: span 1"><span class="lab">Wheel drive system</span><span class="hint">FWD / RWD / AWD / 4WD</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Turbo</span><span class="hint">Yes / No</span><div class="rule"></div></div></div><p class="note">Number of owners has no dedicated field in the Edit Car form. If you fill it in here, type it into the Description box (section C) so the buyer still sees it.</p></section>
+    </div>
+    <div>
+      <section class="sec" id="sec-c"><div class="sec-h"><span class="sec-letter">C</span><h3>Description and features</h3><span class="sec-note">This is the text the buyer reads on the QR page</span></div><div class="fld wide"><span class="lab">Standard features (tick what applies)</span><div class="checks c4 feat"><span class=ck><i></i>Air conditioning</span><span class=ck><i></i>Climate control</span><span class=ck><i></i>Sunroof</span><span class=ck><i></i>Leather seats</span><span class=ck><i></i>Heated seats</span><span class=ck><i></i>Reverse camera</span><span class=ck><i></i>Parking sensors</span><span class=ck><i></i>Navigation</span><span class=ck><i></i>Bluetooth</span><span class=ck><i></i>Apple CarPlay</span><span class=ck><i></i>Android Auto</span><span class=ck><i></i>Multimedia screen</span><span class=ck><i></i>LED headlights</span><span class=ck><i></i>Fog lights</span><span class=ck><i></i>Alloy wheels</span><span class=ck><i></i>Power windows</span><span class=ck><i></i>Cruise control</span><span class=ck><i></i>Adaptive cruise</span><span class=ck><i></i>Lane keep assist</span><span class=ck><i></i>Blind spot alert</span><span class=ck><i></i>Keyless entry</span><span class=ck><i></i>Push start</span><span class=ck><i></i>Alarm</span><span class=ck><i></i>Service history</span></div></div><div class="fld wide"><span class="lab">Description</span><span class="hint">Condition - engine - interior - safety - exterior - service history - reason for sale. Write like a salesperson, not a mechanic.</span><div class="writebox" style="height:24mm"></div></div><p class="note warn"><b>Do not use commas</b> if you plan to add this vehicle by CSV bulk import - the importer splits rows on commas and shifts the columns. Use " - " or " ; " instead. Example: "Excellent condition - sunroof - leather seats - reverse camera - 1 owner - full service history."</p></section>
+      <section class="sec" id="sec-d"><div class="sec-h"><span class="sec-letter">D</span><h3>Contact</h3><span class="sec-note">How the buyer reaches the showroom</span></div><div class="grid g4"><div class="fld " style="grid-column: span 1"><span class="lab">Phone</span><span class="hint">e.g. 0770 123 4567</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">WhatsApp</span><span class="hint">e.g. 009647701234567</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Email</span><span class="hint">e.g. sales@showroom.com</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Video link</span><span class="hint">optional</span><div class="rule"></div></div></div><p class="note">The form automatically strips a leading <b>00</b> from the WhatsApp number so the wa.me link works. Enter it in international format and let the form handle the rest.</p></section>
+    </div>
+  </div>
+  <div class="run-foot">
+    <span class="l">Car QR Showcase &middot; Vehicle Inquiry Sheet</span>
+    <span class="r">Page 1 of 4</span>
+  </div>
+</section>
+
+<section class="page" id="page-2">
+  <div class="run-head">
+    <span class="l">CAR QR SHOWCASE &mdash; VEHICLE INQUIRY SHEET</span>
+    <span class="r">One sheet per vehicle &middot; Page 2 of 4</span>
+  </div>
+  <div class="masthead">
+    <div>
+      <h1>Vehicle <span>Inquiry Sheet</span></h1>
+      <div class="sub">Car QR Showcase &mdash; details for the QR vehicle profile and dealer dashboard</div>
+    </div>
+    <div class="meta">
+      <b>DEALER</b>
+      <div style="margin-top:1mm">Sheet ref: ________________</div>
+      <div>Date: ____ / ____ / ________</div>
+    </div>
+  </div>
+  <section class="sec" id="sec-e"><div class="sec-h"><span class="sec-letter">E</span><h3>Regulatory information</h3><span class="sec-note">Optional - leave blank if the documents are not to hand</span></div><div class="grid g5"><div class="fld " style="grid-column: span 1"><span class="lab">CCR No.</span><span class="hint">Registration / CCR number</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Approved On</span><span class="hint">Approval date</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Produced In &amp; After</span><span class="hint">e.g. 2024</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Country of Production</span><span class="hint">e.g. Japan</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Pollutant Limits</span><span class="hint">e.g. Euro 6</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">VIN</span><span class="hint">Vehicle Identification Number</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Label No.</span><span class="hint">Label number</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Manufacturer</span><span class="hint">Manufacturer name</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Motor Vehicle Class</span><span class="hint">e.g. Class 1</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">FE (CAFE) Combined</span><span class="hint">e.g. 45 MPG</span><div class="rule"></div></div></div></section>
+  <section class="sec" id="sec-f"><div class="sec-h"><span class="sec-letter">F</span><h3>Photos and media</h3><span class="sec-note">Up to 10 photos, auto-compressed to 100 KB each</span></div><div class="fld wide"><span class="lab">Photos supplied (tick how many)</span><div class="checks c10"><span class="ck"><i></i>1</span><span class="ck"><i></i>2</span><span class="ck"><i></i>3</span><span class="ck"><i></i>4</span><span class="ck"><i></i>5</span><span class="ck"><i></i>6</span><span class="ck"><i></i>7</span><span class="ck"><i></i>8</span><span class="ck"><i></i>9</span><span class="ck"><i></i>10</span></div></div><div class="fld wide"><span class="lab">Shots to capture (tick as done)</span><div class="checks c4 feat"><span class="ck"><i></i>Front</span><span class="ck"><i></i>Rear</span><span class="ck"><i></i>Left side</span><span class="ck"><i></i>Right side</span><span class="ck"><i></i>Interior</span><span class="ck"><i></i>Dashboard</span><span class="ck"><i></i>Engine bay</span><span class="ck"><i></i>Wheels</span></div></div><p class="note"><b>Six good photos outperform ten weak ones.</b> Front, rear, both sides, interior and dashboard is the practical minimum for a dealer listing.</p></section>
+  <section class="sec" id="sec-g"><div class="sec-h"><span class="sec-letter">G</span><h3>Interior and warranty</h3><span class="sec-note">What the buyer sits in, and what is covered</span></div><div class="grid g3"><div class="fld " style="grid-column: span 1"><span class="lab">Number of seats</span><span class="hint">e.g. 5</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Seat material</span><span class="hint">Leather / Fabric / ...</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Wheel size</span><span class="hint">e.g. 18&quot;</span><div class="rule"></div></div></div><div class="grid g2"><div class="fld " style="grid-column: span 1"><span class="lab">Warranty status</span><span class="hint">Factory / Dealer / Expired</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Warranty details</span><span class="hint">e.g. 2 years / 40,000 km</span><div class="rule"></div></div></div><div class="fld wide"><span class="lab">Camera features (tick all that apply)</span><div class="checks c3 feat"><span class="ck"><i></i>Rear Camera</span><span class="ck"><i></i>Front Camera</span><span class="ck"><i></i>360° Camera</span><span class="ck"><i></i>Blind Spot Camera</span><span class="ck"><i></i>Dash Cam</span><span class="ck"><i></i>Parking Sensors Front</span><span class="ck"><i></i>Parking Sensors Rear</span><span class="ck"><i></i>Underbody Camera</span><span class="ck"><i></i>Surround View Monitor</span></div></div></section>
+  <section class="sec" id="sec-h"><div class="sec-h"><span class="sec-letter">H</span><h3>Sign-off</h3><span class="sec-note">Confirms the details above are accurate</span></div><div class="grid g4"><div class="fld " style="grid-column: span 1"><span class="lab">Completed by (name)</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Role</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Date</span><div class="rule"></div></div><div class="fld " style="grid-column: span 1"><span class="lab">Dealer reference / stock no.</span><div class="rule"></div></div></div><div class="sigrow"><div class="sig"><span class="lab">Dealer signature</span><div class="rule"></div></div><div class="sig"><span class="lab">Car QR Showcase use only - vehicle ID</span><div class="rule"></div></div></div></section>
+  <div class="nextbox">
+    <div class="next-h">What happens after you submit this sheet</div>
+    <p>1. Car QR Showcase enters the details into the Edit Car form and generates the QR code.<br/>
+    2. You approve the QR preview, print the sticker and fix it to the windshield.<br/>
+    3. The dealer watches scans and enquiries arrive on the dashboard.<br/>
+    4. The QR URL can be changed at any time from one settings field - every sticker already printed keeps working.</p>
+  </div>
+  <div class="run-foot">
+    <span class="l">Car QR Showcase &middot; Vehicle Inquiry Sheet</span>
+    <span class="r">Page 2 of 4</span>
+  </div>
+</section>
+
+<section class="page" id="page-3">
+  <div class="run-head">
+    <span class="l">CAR QR SHOWCASE &mdash; OPERATOR REFERENCE</span>
+    <span class="r">Page 3 of 4 &middot; keep with the sheet</span>
+  </div>
+  <div class="masthead">
+    <div>
+      <h1>Operator <span>Reference</span></h1>
+      <div class="sub">How to move a completed sheet into the Edit Car form without losing anything</div>
+    </div>
+    <div class="meta">
+      <b>FOR THE OPERATOR</b>
+      <div style="margin-top:1mm">Not for the dealer</div>
+      <div>Matches the live admin form</div>
+    </div>
+  </div>
+  <section class="sec" id="sec-i"><div class="sec-h"><span class="sec-letter">I</span><h3>How to use this sheet</h3><span class="sec-note">The operator&#x27;s side</span></div><ol class="steps"><li><b>Collect.</b> Hand this sheet to the dealer - or fill it in with them - for every vehicle that is getting a QR code. One sheet per vehicle.</li><li><b>Check.</b> Make and Model are filled in, the Description box actually lists the features, and photos are supplied.</li><li><b>Enter.</b> Admin panel - Cars - Add Car - paste each value into the matching field in the Edit Car form. Section J is the field-by-field map.</li><li><b>Print the QR.</b> In the same form pick the QR template, frame and shape, then print the sticker and fix it to the windshield.</li><li><b>Batch alternative.</b> Fill the Intake Ledger spreadsheet instead, then use Cars - Bulk Import and upload it as a CSV. One file per dealer.</li></ol></section>
+  <section class="sec" id="sec-j"><div class="sec-h"><span class="sec-letter">J</span><h3>Field mapping to the Edit Car form</h3><span class="sec-note">Every field on this sheet, and where it goes</span></div><table class="map"><thead><tr><th>Sec</th><th>Field on this sheet</th><th>Edit Car form field</th><th>Notes</th></tr></thead><tbody><tr><td class="c-sec">A</td><td><b>Dealer / company</b></td><td class="c-form">Company</td><td class="c-note">Select the dealer account the vehicle belongs to.</td></tr><tr><td class="c-sec">A</td><td><b>Make *</b></td><td class="c-form">Make *</td><td class="c-note">Dropdown, or &#x27;+ Other (Enter Manually)&#x27; for an unlisted make.</td></tr><tr><td class="c-sec">A</td><td><b>Model *</b></td><td class="c-form">Model *</td><td class="c-note">List depends on Make. Changing Make clears Model - set Make first.</td></tr><tr><td class="c-sec">A</td><td><b>Year</b></td><td class="c-form">Year</td><td class="c-note">Numeric.</td></tr><tr><td class="c-sec">A</td><td><b>VIN / chassis no.</b></td><td class="c-form">VIN (regulatory)</td><td class="c-note">The VIN input lives in the regulatory block.</td></tr><tr><td class="c-sec">A</td><td><b>Body type</b></td><td class="c-form">Body Type</td><td class="c-note">Dropdown.</td></tr><tr><td class="c-sec">A</td><td><b>Car condition</b></td><td class="c-form">Car Condition</td><td class="c-note">Dropdown. New / Used / Certified Pre-Owned / ...</td></tr><tr><td class="c-sec">A</td><td><b>Trim level</b></td><td class="c-form">Trim Level</td><td class="c-note">Free text with suggestions.</td></tr><tr><td class="c-sec">B</td><td><b>Price</b></td><td class="c-form">Price</td><td class="c-note">Free text. Keep the currency symbol.</td></tr><tr><td class="c-sec">B</td><td><b>Mileage</b></td><td class="c-form">Mileage</td><td class="c-note">Free text. Keep the unit (KM or miles).</td></tr><tr><td class="c-sec">B</td><td><b>Location</b></td><td class="c-form">Location</td><td class="c-note">Shown on the customer page.</td></tr><tr><td class="c-sec">B</td><td><b>Colour</b></td><td class="c-form">Color</td><td class="c-note">Dropdown - tick one on the sheet.</td></tr><tr><td class="c-sec">B</td><td><b>Fuel type</b></td><td class="c-form">Fuel Type</td><td class="c-note">Dropdown.</td></tr><tr><td class="c-sec">B</td><td><b>Transmission</b></td><td class="c-form">Transmission</td><td class="c-note">Dropdown.</td></tr><tr><td class="c-sec">B</td><td><b>Engine capacity</b></td><td class="c-form">Engine Capacity</td><td class="c-note">Free text with suggestions (e.g. 2.0L).</td></tr><tr><td class="c-sec">B</td><td><b>Horsepower (HP)</b></td><td class="c-form">Horsepower (HP)</td><td class="c-note">Numeric.</td></tr><tr><td class="c-sec">B</td><td><b>Number of cylinders</b></td><td class="c-form">Number of Cylinders</td><td class="c-note">Dropdown.</td></tr><tr><td class="c-sec">B</td><td><b>Wheel drive system</b></td><td class="c-form">Wheel Drive System</td><td class="c-note">Dropdown: FWD / RWD / AWD / 4WD.</td></tr><tr><td class="c-sec">B</td><td><b>Turbo</b></td><td class="c-form">Turbo</td><td class="c-note">Dropdown: Yes / No / Twin-Turbo / Supercharged.</td></tr><tr><td class="c-sec">B</td><td><b>Number of owners</b></td><td class="c-form">Description</td><td class="c-note">No dedicated field - type it into Description.</td></tr><tr><td class="c-sec">C</td><td><b>Standard features + description</b></td><td class="c-form">Description</td><td class="c-note">The main body of text the buyer reads.</td></tr><tr><td class="c-sec">D</td><td><b>Phone / WhatsApp / Email</b></td><td class="c-form">Phone, WhatsApp, Email</td><td class="c-note">WhatsApp strips a leading 00 automatically.</td></tr><tr><td class="c-sec">D</td><td><b>Video link</b></td><td class="c-form">Video Link</td><td class="c-note">URL.</td></tr><tr><td class="c-sec">E</td><td><b>Photos supplied</b></td><td class="c-form">Car Photos (up to 10)</td><td class="c-note">Max 10. Auto-compressed to 100 KB.</td></tr><tr><td class="c-sec">F</td><td><b>Number of seats</b></td><td class="c-form">Number of Seats</td><td class="c-note">Numeric.</td></tr><tr><td class="c-sec">F</td><td><b>Seat material</b></td><td class="c-form">Seat Material</td><td class="c-note">Dropdown.</td></tr><tr><td class="c-sec">F</td><td><b>Wheel size</b></td><td class="c-form">Wheel Size</td><td class="c-note">Free text with suggestions.</td></tr><tr><td class="c-sec">F</td><td><b>Warranty status / details</b></td><td class="c-form">Warranty Status / Details</td><td class="c-note">Dropdown + free text.</td></tr><tr><td class="c-sec">F</td><td><b>Camera features</b></td><td class="c-form">Camera Features</td><td class="c-note">Tick all that apply.</td></tr><tr><td class="c-sec">G</td><td><b>Regulatory block (10 fields)</b></td><td class="c-form">Vehicle Regulatory Information</td><td class="c-note">All map 1:1.</td></tr><tr><td class="c-sec">-</td><td><b>Scan start / end date</b></td><td class="c-form">QR Scan Timeframe</td><td class="c-note">Optional. Blank means the QR is always live.</td></tr><tr><td class="c-sec">-</td><td><b>QR template / frame / shape / logo / name position</b></td><td class="c-form">QR print settings</td><td class="c-note">Operator picks. Defaults: standard, square, no logo, company name on top.</td></tr></tbody></table></section>
+  <section class="sec" id="sec-k"><div class="sec-h"><span class="sec-letter">K</span><h3>Traps to avoid</h3><span class="sec-note">Check these before you save</span></div><div class="traps"><div class="trap"><div class="trap-h">Make and Model are the only hard blocks</div><div class="trap-b">The form refuses to save without both. Everything else can be empty and added later.</div></div><div class="trap"><div class="trap-h">Set Make before Model</div><div class="trap-b">Changing the Make clears the Model. Enter them in the wrong order and you lose the model.</div></div><div class="trap"><div class="trap-h">There is no separate features field</div><div class="trap-b">The customer page renders Description, fuel type, colour, mileage, price, photos, the specifications and the contact details. Features written anywhere else are invisible - put them in Description (section C).</div></div><div class="trap"><div class="trap-h">Number of owners is the only leftover in Description</div><div class="trap-b">Engine, horsepower and condition now have their own fields. Owners does not - put it in Description.</div></div><div class="trap"><div class="trap-h">Do not use commas in Description or Location</div><div class="trap-b">The CSV bulk importer splits rows on commas, so one comma shifts every column after it. Use &#x27; - &#x27; or &#x27; ; &#x27;. The Edit Car form is not affected.</div></div><div class="trap"><div class="trap-h">One company per bulk import</div><div class="trap-b">The importer assigns every row to the company chosen in step 2. Split the file if the vehicles belong to different dealers.</div></div><div class="trap"><div class="trap-h">WhatsApp formatting</div><div class="trap-b">The form strips a leading 00 and a single leading 0 on long numbers. Enter 009647701234567 and it is stored correctly.</div></div><div class="trap"><div class="trap-h">Photos are the product</div><div class="trap-b">A vehicle with no photos still scans, but it will not sell. Six good photos is the practical minimum for a dealer listing.</div></div></div></section>
+  <div class="run-foot">
+    <span class="l">Car QR Showcase &middot; Vehicle Inquiry Sheet</span>
+    <span class="r">Page 3 of 4</span>
+  </div>
+</section>
+
+<section class="page" id="page-4">
+  <div class="run-head">
+    <span class="l">CAR QR SHOWCASE &mdash; OPERATOR REFERENCE</span>
+    <span class="r">Page 4 of 4 &middot; valid values</span>
+  </div>
+  <div class="masthead">
+    <div>
+      <h1>Operator <span>Reference</span></h1>
+      <div class="sub">How to move a completed sheet into the Edit Car form without losing anything</div>
+    </div>
+    <div class="meta">
+      <b>FOR THE OPERATOR</b>
+      <div style="margin-top:1mm">Not for the dealer</div>
+      <div>Matches the live admin form</div>
+    </div>
+  </div>
+  <section class="sec" id="sec-l"><div class="sec-h"><span class="sec-letter">L</span><h3>Valid values reference</h3><span class="sec-note">Only these values are accepted by the form dropdowns</span></div><div class="vr"><div class="vr-b"><div class="vr-h">Colour</div><div class="pills"><span class="pill">White</span><span class="pill">Black</span><span class="pill">Silver</span><span class="pill">Gray</span><span class="pill">Red</span><span class="pill">Blue</span><span class="pill">Green</span><span class="pill">Yellow</span><span class="pill">Orange</span><span class="pill">Brown</span><span class="pill">Beige</span><span class="pill">Gold</span><span class="pill">Other</span></div></div><div class="vr-b"><div class="vr-h">Fuel type</div><div class="pills"><span class="pill">Gasoline</span><span class="pill">Diesel</span><span class="pill">Electric</span><span class="pill">Hybrid</span><span class="pill">Plug-in Hybrid</span><span class="pill">CNG</span><span class="pill">LPG</span><span class="pill">Other</span></div></div><div class="vr-b"><div class="vr-h">Transmission</div><div class="pills"><span class="pill">Automatic</span><span class="pill">Manual</span><span class="pill">Semi-Automatic</span><span class="pill">CVT</span><span class="pill">Other</span></div></div><div class="vr-b"><div class="vr-h">Body type</div><div class="pills"><span class="pill">Sedan</span><span class="pill">SUV</span><span class="pill">Crossover</span><span class="pill">Coupe</span><span class="pill">Hatchback</span><span class="pill">Wagon</span><span class="pill">Station Wagon</span><span class="pill">Convertible</span><span class="pill">Pickup Truck</span><span class="pill">Van</span><span class="pill">Minivan</span><span class="pill">Truck</span></div></div><div class="vr-b"><div class="vr-h">Car condition</div><div class="pills"><span class="pill">New</span><span class="pill">Used</span><span class="pill">Certified Pre-Owned</span><span class="pill">Demonstrator</span><span class="pill">Ex-Fleet</span><span class="pill">Rebuilt</span><span class="pill">Salvage</span></div></div><div class="vr-b"><div class="vr-h">Wheel drive</div><div class="pills"><span class="pill">FWD</span><span class="pill">RWD</span><span class="pill">AWD</span><span class="pill">4WD</span></div></div><div class="vr-b"><div class="vr-h">Turbo</div><div class="pills"><span class="pill">Yes</span><span class="pill">No</span><span class="pill">Twin-Turbo</span><span class="pill">Supercharged</span></div></div><div class="vr-b"><div class="vr-h">Cylinders</div><div class="pills"><span class="pill">3</span><span class="pill">4</span><span class="pill">5</span><span class="pill">6</span><span class="pill">8</span><span class="pill">10</span><span class="pill">12</span></div></div><div class="vr-b"><div class="vr-h">Seat material</div><div class="pills"><span class="pill">Leather</span><span class="pill">Nappa Leather</span><span class="pill">Alcantara</span><span class="pill">Fabric</span><span class="pill">Suede</span><span class="pill">Vinyl</span><span class="pill">Leather &amp; Fabric</span><span class="pill">Other</span></div></div><div class="vr-b"><div class="vr-h">Warranty status</div><div class="pills"><span class="pill">Factory Warranty</span><span class="pill">Dealer Warranty</span><span class="pill">Under Warranty</span><span class="pill">Expired</span><span class="pill">Not Warrantied</span><span class="pill">Extended Warranty</span></div></div><div class="vr-b"><div class="vr-h">Camera features</div><div class="pills"><span class="pill">Rear Camera</span><span class="pill">Front Camera</span><span class="pill">360° Camera</span><span class="pill">Blind Spot Camera</span><span class="pill">Dash Cam</span><span class="pill">Parking Sensors Front</span><span class="pill">Parking Sensors Rear</span><span class="pill">Underbody Camera</span><span class="pill">Surround View Monitor</span></div></div><div class="vr-b"><div class="vr-h">QR template</div><div class="pills"><span class="pill">Standard</span><span class="pill">Luxury</span><span class="pill">Classic</span><span class="pill">Bold</span><span class="pill">Minimalist</span><span class="pill">Sports</span><span class="pill">Eco</span><span class="pill">EV</span><span class="pill">Hybrid</span><span class="pill">Plug-in Hybrid</span></div></div><div class="vr-b"><div class="vr-h">QR shape</div><div class="pills"><span class="pill mono">square</span><span class="pill mono">rounded_xs</span><span class="pill mono">rounded_sm</span><span class="pill mono">rounded_md</span><span class="pill mono">rounded_lg</span><span class="pill mono">rounded_xl</span><span class="pill mono">pill</span><span class="pill mono">circle</span><span class="pill mono">circle_md</span><span class="pill mono">octagon</span><span class="pill mono">hexagon</span><span class="pill mono">diamond</span></div></div><div class="vr-b"><div class="vr-h">Logo position</div><div class="pills"><span class="pill">No Logo</span><span class="pill">Top of QR</span><span class="pill">Center of QR (overlay)</span><span class="pill">Bottom of QR</span></div></div><div class="vr-b"><div class="vr-h">Company name position</div><div class="pills"><span class="pill">Hide</span><span class="pill">Above QR Code</span><span class="pill">Below QR Code</span></div></div><div class="vr-b"><div class="vr-h">Engine capacity</div><div class="pills"><span class="pill">1.0L</span><span class="pill">1.3L</span><span class="pill">1.5L</span><span class="pill">1.6L</span><span class="pill">1.8L</span><span class="pill">2.0L</span><span class="pill">2.2L</span><span class="pill">2.4L</span><span class="pill">2.5L</span><span class="pill">2.7L</span><span class="pill">3.0L</span><span class="pill">3.5L</span><span class="pill">3.6L</span><span class="pill">4.0L</span><span class="pill">4.2L</span><span class="pill">4.7L</span><span class="pill">5.0L</span><span class="pill">5.7L</span><span class="pill">6.0L</span><span class="pill">6.2L</span><span class="pill">6.5L</span><span class="pill">8.4L</span><span class="pill">Electric</span></div></div><div class="vr-b"><div class="vr-h">Wheel size</div><div class="pills"><span class="pill">14&quot;</span><span class="pill">15&quot;</span><span class="pill">16&quot;</span><span class="pill">17&quot;</span><span class="pill">18&quot;</span><span class="pill">19&quot;</span><span class="pill">20&quot;</span><span class="pill">21&quot;</span><span class="pill">22&quot;</span><span class="pill">23&quot;</span></div></div><div class="vr-b"><div class="vr-h">Trim level</div><div class="pills"><span class="pill">Base</span><span class="pill">Standard</span><span class="pill">Sport</span><span class="pill">Sport Plus</span><span class="pill">Touring</span><span class="pill">Premium</span><span class="pill">Premium Plus</span><span class="pill">Luxury</span><span class="pill">Limited</span><span class="pill">Ultimate</span><span class="pill">Executive</span></div></div></div><p class="note">Makes: 19 fixed options (Toyota, Honda, Ford, Chevrolet, BMW, Mercedes-Benz, Audi, Nissan, Hyundai, Kia, Volkswagen, Tesla, Porsche, Lexus, Mazda, Subaru, Jeep, Land Rover, Volvo) plus manual entry for anything else. Models are per-make - full list in the Intake Ledger spreadsheet, sheet "Valid Values".</p></section>
+  <div class="run-foot">
+    <span class="l">Car QR Showcase &middot; Vehicle Inquiry Sheet</span>
+    <span class="r">Page 4 of 4</span>
+  </div>
+</section>
+
+</body>
+</html>
+

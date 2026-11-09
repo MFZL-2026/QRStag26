@@ -198,6 +198,21 @@ interface CarData {
   manufacturer: string
   motor_vehicle_class: string
   fe_cafe_combined: string
+  // Vehicle Specifications
+  body_type: string
+  warranty_status: string
+  warranty_details: string
+  cylinders: number | null
+  wheel_drive: string
+  engine: string
+  horsepower: string
+  turbo: string
+  camera_features: string[]
+  wheel_size: string
+  seat_material: string
+  number_of_seats: number | null
+  car_condition: string
+  trim_level: string
 }
 
 interface ScanRecord {
@@ -241,6 +256,87 @@ const STORAGE_KEYS = {
   APP_NAME: 'carqr_app_name',
   APP_LOGO: 'carqr_app_logo',
   CUSTOM_QR_URL: 'carqr_custom_url'
+}
+
+// ---------------------------------------------------------------------------
+// Vehicle Specifications - option lists for the Edit Car form.
+// Shared by the admin form and the public views so the values always match.
+// ---------------------------------------------------------------------------
+const BODY_TYPES = [
+  'Sedan', 'SUV', 'Crossover', 'Coupe', 'Hatchback', 'Wagon', 'Station Wagon',
+  'Convertible', 'Pickup Truck', 'Van', 'Minivan', 'Truck'
+]
+
+const CAR_CONDITIONS = [
+  'New', 'Used', 'Certified Pre-Owned', 'Demonstrator', 'Ex-Fleet',
+  'Rebuilt', 'Salvage'
+]
+
+const WHEEL_DRIVES = ['FWD', 'RWD', 'AWD', '4WD']
+
+const TURBO_OPTIONS = ['Yes', 'No', 'Twin-Turbo', 'Supercharged']
+
+const CYLINDER_OPTIONS = ['3', '4', '5', '6', '8', '10', '12']
+
+const SEAT_MATERIALS = [
+  'Leather', 'Nappa Leather', 'Alcantara', 'Fabric', 'Suede', 'Vinyl',
+  'Leather & Fabric', 'Other'
+]
+
+const WARRANTY_STATUSES = [
+  'Factory Warranty', 'Dealer Warranty', 'Under Warranty', 'Expired',
+  'Not Warrantied', 'Extended Warranty'
+]
+
+const CAMERA_FEATURES = [
+  'Rear Camera', 'Front Camera', '360° Camera', 'Blind Spot Camera',
+  'Dash Cam', 'Parking Sensors Front', 'Parking Sensors Rear',
+  'Underbody Camera', 'Surround View Monitor'
+]
+
+const ENGINE_CAPACITIES = [
+  '1.0L', '1.3L', '1.5L', '1.6L', '1.8L', '2.0L', '2.2L', '2.4L', '2.5L',
+  '2.7L', '3.0L', '3.5L', '3.6L', '4.0L', '4.2L', '4.7L', '5.0L', '5.7L',
+  '6.0L', '6.2L', '6.5L', '8.4L', 'Electric'
+]
+
+const WHEEL_SIZES = [
+  '14"', '15"', '16"', '17"', '18"', '19"', '20"', '21"', '22"', '23"'
+]
+
+const TRIM_LEVELS = [
+  'Base', 'Standard', 'Sport', 'Sport Plus', 'Touring', 'Premium',
+  'Premium Plus', 'Luxury', 'Limited', 'Ultimate', 'Executive'
+]
+
+/**
+ * Vehicle specification fields for the public views.
+ * Empty values are skipped, so a vehicle only shows the specs it actually has.
+ */
+function getCarSpecifications(car: Partial<CarData>): { label: string; value: string }[] {
+  const specs: { label: string; value: string }[] = []
+  const push = (label: string, value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === '') return
+    specs.push({ label, value: String(value) })
+  }
+  push('Body Type', car.body_type)
+  push('Condition', car.car_condition)
+  push('Trim', car.trim_level)
+  push('Engine Capacity', car.engine)
+  push('Horsepower', car.horsepower ? `${car.horsepower} HP` : '')
+  push('Cylinders', car.cylinders)
+  push('Wheel Drive', car.wheel_drive)
+  push('Turbo', car.turbo)
+  push('Seats', car.number_of_seats)
+  push('Seat Material', car.seat_material)
+  push('Wheel Size', car.wheel_size)
+  push('Warranty', car.warranty_status)
+  push('Warranty Details', car.warranty_details)
+  const cameras = Array.isArray(car.camera_features) ? car.camera_features : []
+  if (cameras.length > 0) {
+    specs.push({ label: 'Camera Features', value: cameras.join(', ') })
+  }
+  return specs
 }
 
 // Subscription Plans Configuration
@@ -380,7 +476,22 @@ function emptyCar(companyId: string = ''): CarData {
     label_no: '',
     manufacturer: '',
     motor_vehicle_class: '',
-    fe_cafe_combined: ''
+    fe_cafe_combined: '',
+    // Vehicle Specifications
+    body_type: '',
+    warranty_status: '',
+    warranty_details: '',
+    cylinders: null,
+    wheel_drive: '',
+    engine: '',
+    horsepower: '',
+    turbo: '',
+    camera_features: [],
+    wheel_size: '',
+    seat_material: '',
+    number_of_seats: null,
+    car_condition: '',
+    trim_level: ''
   }
 }
 
@@ -1241,6 +1352,23 @@ export default function App() {
         images: editingCar.images || [],
         scan_start_date: editingCar.scan_start_date || '',
         scan_end_date: editingCar.scan_end_date || '',
+        // Vehicle Specifications - normalise so empty fields clear cleanly
+        body_type: editingCar.body_type || '',
+        car_condition: editingCar.car_condition || '',
+        trim_level: editingCar.trim_level || '',
+        engine: editingCar.engine || '',
+        horsepower: editingCar.horsepower || '',
+        cylinders: editingCar.cylinders ?? null,
+        wheel_drive: editingCar.wheel_drive || '',
+        turbo: editingCar.turbo || '',
+        number_of_seats: editingCar.number_of_seats ?? null,
+        seat_material: editingCar.seat_material || '',
+        wheel_size: editingCar.wheel_size || '',
+        warranty_status: editingCar.warranty_status || '',
+        warranty_details: editingCar.warranty_details || '',
+        camera_features: Array.isArray(editingCar.camera_features)
+          ? editingCar.camera_features
+          : [],
         // Format WhatsApp number properly for wa.me
         contact_whatsapp: formatPhoneNumber(editingCar.contactWhatsApp)
       }
@@ -2240,6 +2368,7 @@ export default function App() {
       const isScannable = isCarScannable(car)
       const carLeads = getCarLeads(car.id)
       const template = QR_TEMPLATES[car.qr_template] || QR_TEMPLATES.standard
+      const carSpecs = getCarSpecifications(car)
 
       return (
         <div className="min-h-screen bg-gray-100">
@@ -2304,6 +2433,19 @@ export default function App() {
                   {car.transmission && <div><p className="text-gray-500 text-sm">Transmission</p><p className="font-semibold">{car.transmission}</p></div>}
                   {car.location && <div className="col-span-2"><p className="text-gray-500 text-sm">Location</p><p className="font-semibold">{car.location}</p></div>}
                 </div>
+                {carSpecs.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Specifications</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {carSpecs.map(spec => (
+                        <div key={spec.label} className="bg-gray-50 rounded-xl p-3">
+                          <p className="text-gray-500 text-xs">{spec.label}</p>
+                          <p className="font-semibold text-sm text-gray-800">{spec.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {car.description && <p className="text-gray-700 mb-4">{car.description}</p>}
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   {car.contactPhone && <a href={`tel:${car.contactPhone}`} className="flex items-center justify-center gap-2 p-3 bg-blue-50 rounded-lg"><Phone className="w-5 h-5 text-blue-600" /><span className="text-sm">Call</span></a>}
@@ -4604,6 +4746,119 @@ export default function App() {
                       />
                     </label>
                   )}
+                </div>
+                {/* Vehicle Specifications */}
+                <div className="col-span-2 border-t pt-4">
+                  <label className="block text-sm font-semibold mb-3 text-gray-700">Vehicle Specifications</label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Body Type</label>
+                      <select value={editingCar.body_type || ''} onChange={(e) => setEditingCar({ ...editingCar, body_type: e.target.value })} className="w-full p-2 border rounded-lg text-sm">
+                        <option value="">Select Body Type</option>
+                        {BODY_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Car Condition</label>
+                      <select value={editingCar.car_condition || ''} onChange={(e) => setEditingCar({ ...editingCar, car_condition: e.target.value })} className="w-full p-2 border rounded-lg text-sm">
+                        <option value="">Select Condition</option>
+                        {CAR_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Trim Level</label>
+                      <input list="trim-levels" type="text" value={editingCar.trim_level || ''} onChange={(e) => setEditingCar({ ...editingCar, trim_level: e.target.value })} placeholder="e.g. Sport" className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Engine Capacity</label>
+                      <input list="engine-capacities" type="text" value={editingCar.engine || ''} onChange={(e) => setEditingCar({ ...editingCar, engine: e.target.value })} placeholder="e.g. 2.0L" className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Horsepower (HP)</label>
+                      <input type="number" min={0} value={editingCar.horsepower || ''} onChange={(e) => setEditingCar({ ...editingCar, horsepower: e.target.value })} placeholder="e.g. 203" className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Number of Cylinders</label>
+                      <select value={editingCar.cylinders ?? ''} onChange={(e) => setEditingCar({ ...editingCar, cylinders: e.target.value ? parseInt(e.target.value, 10) : null })} className="w-full p-2 border rounded-lg text-sm">
+                        <option value="">Select</option>
+                        {CYLINDER_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Wheel Drive System</label>
+                      <select value={editingCar.wheel_drive || ''} onChange={(e) => setEditingCar({ ...editingCar, wheel_drive: e.target.value })} className="w-full p-2 border rounded-lg text-sm">
+                        <option value="">Select Drive</option>
+                        {WHEEL_DRIVES.map(w => <option key={w} value={w}>{w}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Turbo</label>
+                      <select value={editingCar.turbo || ''} onChange={(e) => setEditingCar({ ...editingCar, turbo: e.target.value })} className="w-full p-2 border rounded-lg text-sm">
+                        <option value="">Select</option>
+                        {TURBO_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Number of Seats</label>
+                      <input type="number" min={1} max={20} value={editingCar.number_of_seats ?? ''} onChange={(e) => setEditingCar({ ...editingCar, number_of_seats: e.target.value ? parseInt(e.target.value, 10) : null })} placeholder="e.g. 5" className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Seat Material</label>
+                      <select value={editingCar.seat_material || ''} onChange={(e) => setEditingCar({ ...editingCar, seat_material: e.target.value })} className="w-full p-2 border rounded-lg text-sm">
+                        <option value="">Select</option>
+                        {SEAT_MATERIALS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Wheel Size</label>
+                      <input list="wheel-sizes" type="text" value={editingCar.wheel_size || ''} onChange={(e) => setEditingCar({ ...editingCar, wheel_size: e.target.value })} placeholder={'e.g. 18"'} className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Warranty Status</label>
+                      <select value={editingCar.warranty_status || ''} onChange={(e) => setEditingCar({ ...editingCar, warranty_status: e.target.value })} className="w-full p-2 border rounded-lg text-sm">
+                        <option value="">Select</option>
+                        {WARRANTY_STATUSES.map(w => <option key={w} value={w}>{w}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Warranty Details</label>
+                      <input type="text" value={editingCar.warranty_details || ''} onChange={(e) => setEditingCar({ ...editingCar, warranty_details: e.target.value })} placeholder="e.g. 2 years / 40,000 km" className="w-full p-2 border rounded-lg text-sm" />
+                    </div>
+                  </div>
+                  <datalist id="trim-levels">
+                    {TRIM_LEVELS.map(t => <option key={t} value={t} />)}
+                  </datalist>
+                  <datalist id="engine-capacities">
+                    {ENGINE_CAPACITIES.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                  <datalist id="wheel-sizes">
+                    {WHEEL_SIZES.map(w => <option key={w} value={w} />)}
+                  </datalist>
+                  <div className="mt-4">
+                    <label className="block text-xs text-gray-500 mb-2">Camera Features (tick all that apply)</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {CAMERA_FEATURES.map(feature => {
+                        const selected = (editingCar.camera_features || []).includes(feature)
+                        return (
+                          <label key={feature} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => {
+                                const current = editingCar.camera_features || []
+                                const next = selected
+                                  ? current.filter(f => f !== feature)
+                                  : [...current, feature]
+                                setEditingCar({ ...editingCar, camera_features: next })
+                              }}
+                              className="w-4 h-4 rounded border-gray-300"
+                            />
+                            {feature}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
                 {/* Vehicle Regulatory Information */}
                 <div className="col-span-2 border-t pt-4">

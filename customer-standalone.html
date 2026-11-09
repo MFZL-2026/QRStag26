@@ -538,6 +538,38 @@
               ${car.transmission ? `<div class="bg-gray-50 rounded-xl p-4"><p class="text-gray-500 text-sm mb-1">Transmission</p><p class="font-semibold">${car.transmission}</p></div>` : ''}
             </div>
 
+            <!-- Vehicle Specifications -->
+            ${(() => {
+              const specs = []
+              const push = (label, value) => {
+                if (value === null || value === undefined || value === '') return
+                specs.push({ label, value: String(value) })
+              }
+              push('Body Type', car.body_type)
+              push('Condition', car.car_condition)
+              push('Trim', car.trim_level)
+              push('Engine Capacity', car.engine)
+              push('Horsepower', car.horsepower ? car.horsepower + ' HP' : '')
+              push('Cylinders', car.cylinders)
+              push('Wheel Drive', car.wheel_drive)
+              push('Turbo', car.turbo)
+              push('Seats', car.number_of_seats)
+              push('Seat Material', car.seat_material)
+              push('Wheel Size', car.wheel_size)
+              push('Warranty', car.warranty_status)
+              push('Warranty Details', car.warranty_details)
+              const cams = Array.isArray(car.camera_features) ? car.camera_features : []
+              if (cams.length) specs.push({ label: 'Camera Features', value: cams.join(', ') })
+              if (!specs.length) return ''
+              return `
+                <div class="mb-6">
+                  <h3 class="font-semibold text-gray-800 mb-3">Specifications</h3>
+                  <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    ${specs.map(s => `<div class="bg-gray-50 rounded-xl p-3"><p class="text-gray-500 text-xs mb-1">${s.label}</p><p class="font-semibold text-sm text-gray-800">${s.value}</p></div>`).join('')}
+                  </div>
+                </div>`
+            })()}
+
             <!-- Description -->
             ${car.description ? `
               <div class="mb-6">

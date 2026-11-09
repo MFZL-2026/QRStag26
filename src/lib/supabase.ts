@@ -48,7 +48,7 @@ export async function upsertTolerant(
   const body: Record<string, unknown> = { ...payload }
   const droppedColumns: string[] = []
 
-  for (let attempt = 0; attempt < 8; attempt++) {
+  for (let attempt = 0; attempt < 32; attempt++) {
     const { error } = await supabase
       .from(table)
       .upsert([body], options?.onConflict ? { onConflict: options.onConflict } : undefined)
@@ -93,7 +93,7 @@ export async function insertTolerant(
     : [{ ...(payload as Record<string, unknown>) }]
   const droppedColumns: string[] = []
 
-  for (let attempt = 0; attempt < 8; attempt++) {
+  for (let attempt = 0; attempt < 32; attempt++) {
     const { error } = await supabase.from(table).insert(rows)
 
     if (!error) {
