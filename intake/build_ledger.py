@@ -51,7 +51,7 @@ BODY_TYPES = ["Sedan", "SUV", "Crossover", "Coupe", "Hatchback", "Wagon",
               "Station Wagon", "Convertible", "Pickup Truck", "Van",
               "Minivan", "Truck"]
 CAR_CONDITIONS = ["New", "Used", "Certified Pre-Owned", "Demonstrator",
-                  "Ex-Fleet", "Rebuilt", "Salvage"]
+                  "Ex-Fleet", "Rebuilt", "Salvage", "Clean Title", "Painted"]
 WHEEL_DRIVES = ["FWD", "RWD", "AWD", "4WD"]
 TURBO = ["Yes", "No", "Twin-Turbo", "Supercharged"]
 CYLINDERS = ["3", "4", "5", "6", "8", "10", "12"]

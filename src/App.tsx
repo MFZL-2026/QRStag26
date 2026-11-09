@@ -269,7 +269,7 @@ const BODY_TYPES = [
 
 const CAR_CONDITIONS = [
   'New', 'Used', 'Certified Pre-Owned', 'Demonstrator', 'Ex-Fleet',
-  'Rebuilt', 'Salvage'
+  'Rebuilt', 'Salvage', 'Clean Title', 'Painted'
 ]
 
 const WHEEL_DRIVES = ['FWD', 'RWD', 'AWD', '4WD']

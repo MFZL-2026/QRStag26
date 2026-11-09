@@ -26,7 +26,7 @@ const MOCK_CAR = {
   motor_vehicle_class: 'Class 1', fe_cafe_combined: '22 MPG',
   // ---- the 14 new specification fields ----
   body_type: 'SUV',
-  car_condition: 'Certified Pre-Owned',
+  car_condition: process.env.CAR_CONDITION || 'Certified Pre-Owned',
   trim_level: 'B5 Inscription',
   engine: '2.0L',
   horsepower: '250',
@@ -47,7 +47,7 @@ const MOCK_SETTINGS = { id: 'app_settings', app_name: 'QRStag', app_logo: '', cu
 // label -> expected value on the page
 const EXPECT = [
   ['Body Type', 'SUV'],
-  ['Condition', 'Certified Pre-Owned'],
+  ['Condition', process.env.CAR_CONDITION || 'Certified Pre-Owned'],
   ['Trim', 'B5 Inscription'],
   ['Engine Capacity', '2.0L'],
   ['Horsepower', '250 HP'],
