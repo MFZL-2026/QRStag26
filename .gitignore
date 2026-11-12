@@ -21,3 +21,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SSH deploy key - never commit the private key
+.home/.ssh/
+
+# Session scratch from earlier work - not product code, and it used to hold a
+# live Supabase service_role key. Never commit it.
+tmp/
+
+# The sales pitch deck. It is committed to the OUTER /workspace repo only.
+# Add it here deliberately if you want it published on GitHub.
+pitch/
