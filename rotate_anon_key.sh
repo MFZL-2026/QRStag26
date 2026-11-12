@@ -23,8 +23,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 export HOME="${HOME:-/workspace/.home}"
 
-if [[ ! "$NEW_KEY" =~ ^eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}$ ]]; then
-  echo "error: that does not look like a Supabase anon key (expected a JWT)" >&2
+# Accept both key formats:
+#   - legacy JWT  eyJ...        (role: anon)
+#   - new format  sb_publishable_...   (opaque, apikey header only)
+if [[ "$NEW_KEY" =~ ^eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}$ ]] \
+   || [[ "$NEW_KEY" =~ ^sb_publishable_[A-Za-z0-9_-]{10,}$ ]]; then
+  :
+else
+  echo "error: that does not look like a Supabase publishable key" >&2
+  echo "       expected a legacy JWT (eyJ...) or sb_publishable_..." >&2
   exit 2
 fi
 

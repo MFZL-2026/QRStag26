@@ -24,7 +24,8 @@
       const response = await fetch(supabaseUrl + '/rest/v1/' + tableName + '?select=*', {
         headers: {
           'apikey': supabaseKey,
-          'Authorization': 'Bearer ' + supabaseKey
+          ...(supabaseKey.startsWith('sb_publishable_') || supabaseKey.startsWith('sb_secret_')
+            ? {} : { 'Authorization': 'Bearer ' + supabaseKey })
         }
       });
 

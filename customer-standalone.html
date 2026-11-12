@@ -40,6 +40,17 @@
     const SUPABASE_URL = (window.__APP_CONFIG__ && window.__APP_CONFIG__.supabaseUrl) || 'https://uifcfnkbccluhyryywxe.supabase.co';
     const SUPABASE_KEY = (window.__APP_CONFIG__ && window.__APP_CONFIG__.supabaseAnonKey) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpZmNmbmtiY2NsdWh5cnl5d3hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDk4ODMsImV4cCI6MjA5Mjg4NTg4M30.c0jZTMmLCW5kNqyWyufHMzObs1pUYskSw1w4VrWTVdU';
 
+    // New-format Supabase API keys (sb_publishable_... / sb_secret_...) are opaque
+    // strings, not JWTs. The API rejects them in the Authorization header - they
+    // belong only in the apikey header. Legacy JWT keys keep the Bearer header so
+    // row-level security still resolves the same role.
+    const IS_NEW_FORMAT_KEY = SUPABASE_KEY.startsWith('sb_publishable_') || SUPABASE_KEY.startsWith('sb_secret_');
+    function authHeaders() {
+      const h = { 'apikey': SUPABASE_KEY };
+      if (!IS_NEW_FORMAT_KEY) h['Authorization'] = `Bearer ${SUPABASE_KEY}`;
+      return h;
+    }
+
     // QR Templates - Matched with main app QR_TEMPLATES
     const qrTemplates = [
       { id: 'standard', name: 'Standard', fgColor: '#000000', bgColor: '#ffffff', borderColor: '#333333' },
@@ -109,10 +120,7 @@
         let carResponse;
         try {
           carResponse = await fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}&select=*`, {
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`
-            },
+            headers: authHeaders(),
             signal: controller.signal
           });
         } catch (netErr) {
@@ -164,10 +172,7 @@
         // Fetch company data (note: table is 'companies' not 'company')
         if (carData.company_id) {
           const companyResponse = await fetch(`${SUPABASE_URL}/rest/v1/companies?id=eq.${carData.company_id}&select=*`, {
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`
-            }
+            headers: authHeaders()
           });
           const companies = await companyResponse.json();
           if (companies && companies.length > 0) {
@@ -178,10 +183,7 @@
         // Fetch app settings (including custom QR URL)
         try {
           const settingsResponse = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?id=eq.app_settings&select=app_name,custom_qr_url`, {
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`
-            }
+            headers: authHeaders()
           });
           const settingsData = await settingsResponse.json();
           console.log('App settings loaded:', settingsData);
@@ -208,8 +210,7 @@
           fetch(`${SUPABASE_URL}/rest/v1/scan_records`, {
             method: 'POST',
             headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              ...authHeaders(),
               'Content-Type': 'application/json',
               'Prefer': 'return=minimal',
               'Upsert': 'true'
@@ -241,8 +242,7 @@
               const res = await fetch(`${SUPABASE_URL}/rest/v1/cars?id=eq.${carId}`, {
                 method: 'PATCH',
                 headers: {
-                  'apikey': SUPABASE_KEY,
-                  'Authorization': `Bearer ${SUPABASE_KEY}`,
+                  ...authHeaders(),
                   'Content-Type': 'application/json',
                   'Prefer': 'return=minimal'
                 },
@@ -410,8 +410,7 @@
         const response = await fetch(`${SUPABASE_URL}/rest/v1/leads`, {
           method: 'POST',
           headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            ...authHeaders(),
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
