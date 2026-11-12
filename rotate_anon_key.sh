@@ -20,7 +20,17 @@ fi
 
 NEW_KEY="$1"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO="$(cd "$HERE/.." && pwd)"
+# This script may sit at the repo root or in a subdirectory of it. Walk up to
+# whichever ancestor owns package.json - that is the repo root. (Assuming
+# "$HERE/.." is the root silently builds the wrong tree.)
+REPO="$HERE"
+while [ "$REPO" != "/" ] && [ ! -f "$REPO/package.json" ]; do
+  REPO="$(dirname "$REPO")"
+done
+if [ ! -f "$REPO/package.json" ]; then
+  echo "error: could not locate the repo root (no package.json at or above $HERE)" >&2
+  exit 1
+fi
 export HOME="${HOME:-/workspace/.home}"
 
 # Accept both key formats:
@@ -73,11 +83,10 @@ done
 
 echo "-> committing and pushing"
 git add -A
-git commit -q -m "Rotate Supabase anon key after service_role reset
+git commit -q -m "Rotate Supabase publishable key
 
-The anon key is regenerated with the JWT secret when the service_role key is
-reset. runtime-config.js and the source fallbacks are updated, the build is
-refreshed, and docs/ is synced.
+Updates runtime-config.js and the source fallbacks to the new publishable key,
+refreshes the build, and syncs docs/ (what GitHub Pages serves).
 
 Co-Authored-By: Mavis <agent@minimax.com>" || echo "   (nothing to commit)"
 git push origin publish/main:main
