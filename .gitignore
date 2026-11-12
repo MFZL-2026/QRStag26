@@ -35,3 +35,4 @@ pitch/
 
 # The public half of the sandbox deploy key (the private half stays in ~/.ssh)
 deploy-key-carqr.pub
+deploy-key-carqr.txt
