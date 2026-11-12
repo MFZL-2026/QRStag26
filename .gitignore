@@ -32,3 +32,6 @@ tmp/
 # The sales pitch deck. It is committed to the OUTER /workspace repo only.
 # Add it here deliberately if you want it published on GitHub.
 pitch/
+
+# The public half of the sandbox deploy key (the private half stays in ~/.ssh)
+deploy-key-carqr.pub
