@@ -5128,11 +5128,26 @@ export default function App() {
                           type="button"
                           onClick={async () => {
                             if (!qrPreviewRef.current) return
+                            if (!qrImageDataUrl) {
+                              alert('QR code is still loading. Please wait and try again.')
+                              return
+                            }
+                            // html2canvas does not paint content that sits inside a nested
+                            // `display:inline-block`. The preview wraps the QR image in one,
+                            // so the image silently vanishes from the capture and the download
+                            // comes out with the frame but no QR. Switch that wrapper to
+                            // `block` for the capture only - it renders identically, and we
+                            // restore the original value straight afterwards.
+                            const qrImage = qrPreviewRef.current.querySelector<HTMLImageElement>('img[alt="QR Code"]')
+                            const qrImageWrapper = qrImage?.parentElement
+                            const wrapperDisplay = qrImageWrapper?.style.display
                             try {
+                              if (qrImageWrapper) qrImageWrapper.style.display = 'block'
+
                               // Wait for all images to load
                               const images = qrPreviewRef.current.querySelectorAll('img')
                               await Promise.all(Array.from(images).map(img => {
-                                if (img.complete) return Promise.resolve()
+                                if (img.complete && img.naturalWidth > 0) return Promise.resolve()
                                 return new Promise((resolve, reject) => {
                                   img.onload = resolve
                                   img.onerror = resolve // Don't fail on error
@@ -5157,6 +5172,8 @@ export default function App() {
                             } catch (err) {
                               console.error('Download error:', err)
                               alert('Failed to download QR code')
+                            } finally {
+                              if (qrImageWrapper) qrImageWrapper.style.display = wrapperDisplay || ''
                             }
                           }}
                           className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition"
