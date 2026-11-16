@@ -88,6 +88,24 @@
       return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
     }
 
+    // What kind of device did the scan. No permission prompt, no cookies.
+    function detectDeviceType() {
+      const ua = navigator.userAgent || '';
+      if (/iPad|Tablet|PlayBook|Silk|Android(?!.*Mobile)/i.test(ua)) return 'tablet';
+      if (/Mobi|iPhone|Android/i.test(ua)) return 'mobile';
+      return 'desktop';
+    }
+
+    // The customer's timezone, e.g. "Asia/Baghdad" - a coarse signal for where
+    // the scan came from. Free, silent, and needs no permission.
+    function detectTimezone() {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      } catch (e) {
+        return '';
+      }
+    }
+
     // Get car ID from URL
     function getCarIdFromUrl() {
       const params = new URLSearchParams(window.location.search);
@@ -206,35 +224,20 @@
           const scanId = generateId();
           const scanTime = new Date().toISOString();
 
-          // Record scan in scan_records table
-          fetch(`${SUPABASE_URL}/rest/v1/scan_records`, {
-            method: 'POST',
-            headers: {
-              ...authHeaders(),
-              'Content-Type': 'application/json',
-              'Prefer': 'return=minimal',
-              'Upsert': 'true'
-            },
-            body: JSON.stringify({
-              id: scanId,
-              car_id: carId,
-              scanned_at: scanTime
-            })
-          }).then(async res => {
-            if (res.ok || res.status === 201 || res.status === 200) {
-              console.log('✓ Scan recorded successfully:', scanId, 'for car:', carId);
-            } else {
-              const errorText = await res.text();
-              console.error('✗ Failed to record scan:', res.status, errorText);
-            }
-          }).catch(err => {
-            console.error('✗ Scan record error:', err);
-          });
+          // One call records the scan and bumps the counter, and the database
+          // captures the client IP server-side (the browser cannot read it).
+          // The plain insert + counter update stays as a fallback for a database
+          // that does not have the record_scan function yet.
+          const telemetry = {
+            p_device_type: detectDeviceType(),
+            p_user_agent: navigator.userAgent,
+            p_timezone: detectTimezone()
+          };
 
           // Update scan count on car record.
           // The counter columns are optional: if this database does not have
           // them, PostgREST rejects the whole request (PGRST204). Retry without
-          // the offending column instead of failing — the scan itself has
+          // the offending column instead of failing - the scan itself has
           // already been recorded in scan_records.
           const updateScanCount = async (payload) => {
             let body = { ...payload };
@@ -249,26 +252,72 @@
                 body: JSON.stringify(body)
               });
               if (res.ok) {
-                console.log('✓ Scan count updated to:', newScanCount);
+                console.log('\u2713 Scan count updated to:', newScanCount);
                 return true;
               }
               const text = await res.text();
               const match = text.match(/Could not find the '([^']+)' column/);
               if (match && match[1] in body) {
-                console.warn(`⚠ Database has no "${match[1]}" column — skipping scan counter update`);
+                console.warn(`\u26a0 Database has no "${match[1]}" column - skipping scan counter update`);
                 delete body[match[1]];
                 continue;
               }
-              console.error('✗ Scan count update failed:', res.status, text);
+              console.error('\u2717 Scan count update failed:', res.status, text);
               return false;
             }
             return false;
           };
-          updateScanCount({
-            scan_count: newScanCount,
-            last_scanned_at: scanTime
+
+          // Fallback for a database without the record_scan function.
+          const recordScanFallback = async (fallbackId, fallbackTime) => {
+            try {
+              const res = await fetch(`${SUPABASE_URL}/rest/v1/scan_records`, {
+                method: 'POST',
+                headers: {
+                  ...authHeaders(),
+                  'Content-Type': 'application/json',
+                  'Prefer': 'return=minimal',
+                  'Upsert': 'true'
+                },
+                body: JSON.stringify({
+                  id: fallbackId,
+                  car_id: carId,
+                  scanned_at: fallbackTime,
+                  device_type: telemetry.p_device_type,
+                  user_agent: telemetry.p_user_agent
+                })
+              });
+              if (!res.ok) {
+                console.error('\u2717 Failed to record scan:', res.status, await res.text());
+                return;
+              }
+              console.log('\u2713 Scan recorded successfully:', fallbackId, 'for car:', carId);
+              await updateScanCount({
+                scan_count: newScanCount,
+                last_scanned_at: fallbackTime
+              });
+            } catch (err) {
+              console.error('\u2717 Scan record error:', err);
+            }
+          };
+
+          fetch(`${SUPABASE_URL}/rest/v1/rpc/record_scan`, {
+            method: 'POST',
+            headers: {
+              ...authHeaders(),
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ p_car_id: carId, ...telemetry })
+          }).then(async res => {
+            if (res.ok) {
+              console.log('\u2713 Scan recorded successfully for car:', carId);
+              return;
+            }
+            console.warn('\u26a0 record_scan unavailable, falling back to a plain insert');
+            await recordScanFallback(scanId, scanTime);
           }).catch(err => {
-            console.error('✗ Scan count update error:', err);
+            console.warn('\u26a0 record_scan failed, falling back to a plain insert:', err);
+            recordScanFallback(scanId, scanTime);
           });
         }
 

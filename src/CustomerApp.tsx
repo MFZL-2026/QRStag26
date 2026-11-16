@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import html2canvas from 'html2canvas'
 import { createClient } from '@supabase/supabase-js'
+import { scanTelemetry, telemetryFallbackColumns } from './lib/scanTelemetry'
 import { Phone, Mail, Sparkles, X, ChevronLeft, ChevronRight, Download, AlertCircle, MessageCircle, Video, Printer } from 'lucide-react'
 
 // Print size options (in mm converted to pixels at 72 DPI)
@@ -396,32 +397,39 @@ export default function CustomerApp() {
         const scanKey = `scanned_${carId}`
         if (!sessionStorage.getItem(scanKey)) {
           sessionStorage.setItem(scanKey, 'true')
-          // Fire and forget - don't await to speed up page load
+          // One call records the scan and bumps the counter, and the database
+          // captures the client IP server-side (the browser cannot read it).
+          // The old two-call path stays as a fallback for a database that does
+          // not have the record_scan function yet.
           supabase
-            .from('scan_records')
-            .insert([{
-              id: generateId(),
-              car_id: carId,
-              scanned_at: new Date().toISOString()
-            }])
-            .then(({ error }) => {
-              if (error) console.error('Error recording scan:', error)
-              else console.log('Scan recorded for car:', carId)
-            })
-          // Update scan count asynchronously.
-          // IMPORTANT: supabase-js only sends the HTTP request when the query
-          // builder is awaited (or .then() is called). Without it the update
-          // is never executed and the counter silently stays at 0.
-          supabase
-            .from('cars')
-            .update({
-              scan_count: (carData.scan_count || 0) + 1,
-              last_scanned_at: new Date().toISOString()
-            })
-            .eq('id', carId)
-            .then(({ error }) => {
-              if (error) console.error('Error updating scan count:', error)
-              else console.log('Scan count updated for car:', carId)
+            .rpc('record_scan', { p_car_id: carId, ...scanTelemetry() })
+            .then(({ data, error }) => {
+              if (error) {
+                console.error('Error recording scan:', error)
+                supabase
+                  .from('scan_records')
+                  .insert([{
+                    id: generateId(),
+                    car_id: carId,
+                    scanned_at: new Date().toISOString(),
+                    ...telemetryFallbackColumns()
+                  }])
+                  .then(({ error: insertError }) => {
+                    if (insertError) console.error('Scan fallback failed:', insertError)
+                  })
+                supabase
+                  .from('cars')
+                  .update({
+                    scan_count: (carData.scan_count || 0) + 1,
+                    last_scanned_at: new Date().toISOString()
+                  })
+                  .eq('id', carId)
+                  .then(({ error: updateError }) => {
+                    if (updateError) console.error('Scan count fallback failed:', updateError)
+                  })
+              } else {
+                console.log('Scan recorded for car:', carId, 'id:', data)
+              }
             })
         }
 
